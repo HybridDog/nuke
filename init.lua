@@ -429,7 +429,6 @@ function HARDCORE_IRON_TNT:on_punch(hitter)
 	if self.health <= 0 then
 		self.object:remove()
 		hitter:add_to_inventory("node nuke:hardcore_iron_tnt 1")
-		hitter:set_hp(hitter:get_hp() - 1)
 	end
 end
 
@@ -532,7 +531,6 @@ function HARDCORE_MESE_TNT:on_punch(hitter)
 	if self.health <= 0 then
 		self.object:remove()
 		hitter:add_to_inventory("node nuke:hardcore_mese_tnt 1")
-		hitter:set_hp(hitter:get_hp() - 1)
 	end
 end
 
