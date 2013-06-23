@@ -128,16 +128,48 @@ local function explode(pos, range)
 	end
 end
 
--- Iron TNT
+
+--Crafting:
 
 minetest.register_craft({
-	output = 'node "nuke:iron_tnt" 4',
+	output = 'nuke:iron_tnt 4',
 	recipe = {
-		{'','node "default:wood" 1',''},
-		{'craft "default:steel_ingot" 1','craft "default:coal_lump" 1','craft "default:steel_ingot" 1'},
-		{'','node "default:wood" 1',''}
+		{'','default:wood',''},
+		{'default:steel_ingot','default:coal_lump','default:steel_ingot'},
+		{'','default:wood',''}
 	}
 })
+
+minetest.register_craft({
+	output = 'nuke:mese_tnt 4',
+	recipe = {
+		{'','default:wood',''},
+		{'default:mese_crystal','default:coal_lump','default:mese_crystal'},
+		{'','default:wood',''}
+	}
+})
+
+minetest.register_craft({
+	output = 'nuke:hardcore_iron_tnt',
+	recipe = {
+		{'','default:coal_lump',''},
+		{'default:coal_lump','nuke:iron_tnt','default:coal_lump'},
+		{'','default:coal_lump',''}
+	}
+})
+
+minetest.register_craft({
+	output = 'nuke:hardcore_mese_tnt',
+	recipe = {
+		{'','default:coal_lump',''},
+		{'default:coal_lump','nuke:mese_tnt','default:coal_lump'},
+		{'','default:coal_lump',''}
+	}
+})
+
+
+-- Iron TNT
+
 minetest.register_node("nuke:iron_tnt", {
 	tile_images = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
 			"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png",
@@ -232,14 +264,6 @@ minetest.register_entity("nuke:iron_tnt", IRON_TNT)
 
 -- Mese TNT
 
-minetest.register_craft({
-	output = 'node "nuke:mese_tnt" 4',
-	recipe = {
-		{'','node "default:wood" 1',''},
-		{'node "default:mese" 1','craft "default:coal_lump" 1','node "default:mese" 1'},
-		{'','node "default:wood" 1',''}
-	}
-})
 minetest.register_node("nuke:mese_tnt", {
 	tile_images = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
 			"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png",
@@ -334,14 +358,6 @@ minetest.register_entity("nuke:mese_tnt", MESE_TNT)
 
 -- Hardcore Iron TNT
 
-minetest.register_craft({
-	output = 'node "nuke:hardcore_iron_tnt" 1',
-	recipe = {
-		{'','craft "default:coal_lump" 1',''},
-		{'craft "default:coal_lump" 1','node "nuke:iron_tnt" 1','craft "default:coal_lump" 1'},
-		{'','craft "default:coal_lump" 1',''}
-	}
-})
 minetest.register_node("nuke:hardcore_iron_tnt", {
 	tile_images = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
 			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png",
@@ -436,14 +452,6 @@ minetest.register_entity("nuke:hardcore_iron_tnt", HARDCORE_IRON_TNT)
 
 -- Hardcore Mese TNT
 
-minetest.register_craft({
-	output = 'node "nuke:hardcore_mese_tnt" 1',
-	recipe = {
-		{'','craft "default:coal_lump" 1',''},
-		{'craft "default:coal_lump" 1','node "nuke:mese_tnt" 1','craft "default:coal_lump" 1'},
-		{'','craft "default:coal_lump" 1',''}
-	}
-})
 minetest.register_node("nuke:hardcore_mese_tnt", {
 	tile_images = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
 			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png",
