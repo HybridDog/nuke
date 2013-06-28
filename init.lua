@@ -1,4 +1,4 @@
-local nuke_preserve_items = true
+local nuke_preserve_items = false
 local nuke_drop_items = false --this will only cause lags
 
 local function describe_chest()
@@ -180,7 +180,7 @@ minetest.register_node("nuke:iron_tnt", {
 	material = {
 		diggability = "not",
 	},
-	description = "Iron TNT",
+	description = "Iron Bomb",
 })
 
 minetest.register_on_punchnode(function(p, node, puncher)
@@ -274,7 +274,7 @@ minetest.register_node("nuke:mese_tnt", {
 	material = {
 		diggability = "not",
 	},
-	description = "Mese TNT",
+	description = "Mese Bomb",
 })
 
 minetest.register_on_punchnode(function(p, node, puncher)
@@ -368,7 +368,7 @@ minetest.register_node("nuke:hardcore_iron_tnt", {
 	material = {
 		diggability = "not",
 	},
-	description = "Hardcore Iron TNT",
+	description = "Hardcore Iron Bomb",
 })
 
 minetest.register_on_punchnode(function(p, node)
@@ -462,7 +462,7 @@ minetest.register_node("nuke:hardcore_mese_tnt", {
 	material = {
 		diggability = "not",
 	},
-	description = "Hardcore Mese TNT",
+	description = "Hardcore Mese Bomb",
 })
 
 minetest.register_on_punchnode(function(p, node)
