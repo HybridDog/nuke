@@ -1,6 +1,10 @@
 local nuke_preserve_items = false
 local nuke_drop_items = false --this will only cause lags
 
+nuke_mossy_nodes = { --I hope default:mossystonebrick will exist in the future.
+	{"default:cobble", "default:mossycobble"}
+}
+
 local function describe_chest()
 	if math.random(5) == 1 then return "You nuked. I HAVE NOT!" end
 	if math.random(10) == 1 then return "Hehe, I'm the result of your explosion hee!" end
@@ -118,8 +122,43 @@ local function explode(pos, range)
 						while minetest.env:get_node({x=p.x, y=p.y-1, z=p.z}).name == "air" do
 							p.y=p.y-1
 						end
+
 						minetest.env:add_node(p, {name="default:chest"})
 						minetest.env:get_meta(minetest.env:get_meta(pos))]]
+					end
+					activate_if_tnt(n.name, np, pos, range)
+				end
+			end
+		end
+	end
+end
+
+local function expl_moss(pos, range)
+	local radius = range^2 + range
+	for x=-range,range do
+		for y=-range,range do
+			for z=-range,range do
+				local r = x^2+y^2+z^2 
+				if r <= radius then
+					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
+					local n = minetest.env:get_node(np)
+					if n.name ~= "air"
+					and n.name ~= "default:chest" then
+						if math.floor(math.sqrt(r) +0.5) > range-1 then
+							if math.random(1,5) >= 4 then
+								destroy_node(np)
+							elseif math.random(1,50) == 1 then
+								minetest.sound_play("default_glass_footstep", {pos = np, gain = 0.5, max_hear_distance = 4})
+							else
+								for _,node in ipairs(nuke_mossy_nodes) do
+									if n.name == node[1] then
+										minetest.env:add_node (np, {name = node[2]})
+									end
+								end
+							end
+						else
+							destroy_node(np)
+						end
 					end
 					activate_if_tnt(n.name, np, pos, range)
 				end
@@ -221,6 +260,7 @@ function IRON_TNT:on_step(dtime)
 	self.blinktimer = self.blinktimer + dtime
 	if self.timer>5 then
 		self.blinktimer = self.blinktimer + dtime
+
 		if self.timer>8 then
 			self.blinktimer = self.blinktimer + dtime
 			self.blinktimer = self.blinktimer + dtime
@@ -261,6 +301,7 @@ function IRON_TNT:on_punch(hitter)
 end
 
 minetest.register_entity("nuke:iron_tnt", IRON_TNT)
+
 
 -- Mese TNT
 
@@ -355,6 +396,102 @@ function MESE_TNT:on_punch(hitter)
 end
 
 minetest.register_entity("nuke:mese_tnt", MESE_TNT)
+
+
+-- Mossy TNT
+
+minetest.register_node("nuke:mossy_tnt", {
+	tile_images = {"nuke_mossy_tnt_top.png", "nuke_mossy_tnt_bottom.png",
+			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png",
+			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"},
+	inventory_image = minetest.inventorycube("nuke_mossy_tnt_top.png",
+			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"),
+	dug_item = '', -- Get nothing
+	material = {
+		diggability = "not",
+	},
+	description = "Mossy Bomb",
+})
+
+minetest.register_on_punchnode(function(p, node, puncher)
+	if node.name == "nuke:mossy_tnt" then
+		minetest.env:remove_node(p)
+		spawn_tnt(p, "nuke:mossy_tnt")
+		nodeupdate(p)
+		nuke_puncher = puncher
+	end
+end)
+
+local MOSSY_TNT_RANGE = 2
+local MOSSY_TNT = {
+	-- Static definition
+	physical = true, -- Collides with things
+	-- weight = 5,
+	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
+	visual = "cube",
+	textures = {"nuke_mossy_tnt_top.png", "nuke_mossy_tnt_bottom.png",
+			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png",
+			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"},
+	-- Initial value for our timer
+	timer = 0,
+	-- Number of punches required to defuse
+	health = 1,
+	blinktimer = 0,
+	blinkstatus = true,
+}
+
+function MOSSY_TNT:on_activate(staticdata)
+	self.object:setvelocity({x=0, y=4, z=0})
+	self.object:setacceleration({x=0, y=-10, z=0})
+	self.object:settexturemod("^[brighten")
+end
+
+function MOSSY_TNT:on_step(dtime)
+	self.timer = self.timer + dtime
+	self.blinktimer = self.blinktimer + dtime
+	if self.timer>5 then
+		self.blinktimer = self.blinktimer + dtime
+		if self.timer>8 then
+			self.blinktimer = self.blinktimer + dtime
+			self.blinktimer = self.blinktimer + dtime
+		end
+	end
+	if self.blinktimer > 0.5 then
+		self.blinktimer = self.blinktimer - 0.5
+		if self.blinkstatus then
+			self.object:settexturemod("")
+		else
+			self.object:settexturemod("^[brighten")
+		end
+		self.blinkstatus = not self.blinkstatus
+	end
+	if self.timer > 10 then
+		local pos = self.object:getpos()
+		pos.x = math.floor(pos.x+0.5)
+		pos.y = math.floor(pos.y+0.5)
+		pos.z = math.floor(pos.z+0.5)
+		do_tnt_physics(pos, MOSSY_TNT_RANGE)
+		minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
+		if minetest.env:get_node(pos).name == "default:water_source" or minetest.env:get_node(pos).name == "default:water_flowing" then
+			-- Cancel the Explosion
+			self.object:remove()
+			return
+		end
+		expl_moss(pos, MOSSY_TNT_RANGE)
+		self.object:remove()
+	end
+end
+
+function MOSSY_TNT:on_punch(hitter)
+	self.health = self.health - 1
+	if self.health <= 0 then
+		self.object:remove()
+		hitter:get_inventory():add_item("main", "nuke:mossy_tnt")
+	end
+end
+
+minetest.register_entity("nuke:mossy_tnt", MOSSY_TNT)
+
 
 -- Hardcore Iron TNT
 
