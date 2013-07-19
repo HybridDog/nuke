@@ -1,4 +1,4 @@
-local nuke_preserve_items = false
+local nuke_preserve_items = true
 local nuke_drop_items = false --this will only cause lags
 
 nuke_mossy_nodes = { --I hope default:mossystonebrick will exist in the future.
