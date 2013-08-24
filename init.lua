@@ -1,9 +1,33 @@
-local nuke_preserve_items = true
+local nuke_preserve_items = false
 local nuke_drop_items = false --this will only cause lags
+local MESE_TNT_RANGE = 12
 
-nuke_mossy_nodes = { --I hope default:mossystonebrick will exist in the future.
-	{"default:cobble", "default:mossycobble"}
-}
+
+local function copy_meta(pos, p)
+	local meta0 = minetest.get_meta(pos):to_table()
+	local meta = minetest.get_meta(p)
+	meta:from_table(meta0)
+end
+
+
+if minetest.get_modpath("extrablocks") then
+	nuke_mossy_nodes = {
+		{"default:cobble", "default:mossycobble"},
+		{"default:stonebrick",	"extrablocks:mossystonebrick"},
+		{"extrablocks:wall",	"extrablocks:mossywall"}
+	}
+else
+	nuke_mossy_nodes = {
+		{"default:cobble", "default:mossycobble"}
+	}
+end
+
+local num = 1
+local nuke_mossy_nds = {}
+for _,node in ipairs(nuke_mossy_nodes) do
+	nuke_mossy_nds[num] = {minetest.get_content_id(node[1]), minetest.get_content_id(node[2])}
+	num = num+1
+end
 
 local function describe_chest()
 	if math.random(5) == 1 then return "You nuked. I HAVE NOT!" end
@@ -33,7 +57,6 @@ end
 local function destroy_node(pos)
 	if nuke_preserve_items then
 		local drops = minetest.get_node_drops(minetest.env:get_node(pos).name)
-		minetest.env:remove_node(pos)
 		if nuke_drop_items then
 			for _, item in ipairs(drops) do
 				if item ~= "default:cobble" then
@@ -59,8 +82,6 @@ local function destroy_node(pos)
 				end
 			end
 		end
-	else
-		minetest.env:remove_node(pos)
 	end
 end
 
@@ -96,7 +117,30 @@ function do_tnt_physics(tnt_np,tntr)
 	end
 end
 
+local function get_volume(pos1, pos2)
+	return (pos2.x - pos1.x + 1) * (pos2.y - pos1.y + 1) * (pos2.z - pos1.z + 1)
+end
+
+local nuke_seed = 12
+
+local function get_nuke_random(pos)
+	return PseudoRandom(math.abs(pos.x+pos.y*3+pos.z*5)+nuke_seed)
+end
+
+local c_air = minetest.get_content_id("air")
+local c_chest = minetest.get_content_id("default:chest")
+
 local function explode(pos, range)
+	local t1 = os.clock()
+	local manip = minetest.get_voxel_manip()
+	local width = range+1
+	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
+		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
+	local area = VoxelArea:new{MinEdge=emerged_pos1, MaxEdge=emerged_pos2}
+
+	local nodes = manip:get_data()
+	local pr = get_nuke_random(pos)
+
 	local radius = range^2 + range
 	for x=-range,range do
 		for y=-range,range do
@@ -104,66 +148,139 @@ local function explode(pos, range)
 				local r = x^2+y^2+z^2 
 				if r <= radius then
 					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
-					local n = minetest.env:get_node(np)
-					if n.name ~= "air"
-					and n.name ~= "default:chest" then
-	--				and math.random(1,2^rad) < range*8 then
+--					local n = minetest.env:get_node(np)
+					local p_np = area:index(np.x, np.y, np.z)
+					local d_p_np = nodes[p_np]
+					if d_p_np ~= c_air
+					and d_p_np ~= c_chest then
 						if math.floor(math.sqrt(r) +0.5) > range-1 then
-							if math.random(1,5) >= 2 then
-								destroy_node(np)
-							elseif math.random(1,50) == 1 then
+							if pr:next(1,5) >= 2 then
+--								destroy_node(np)
+								nodes[area:index(np.x, np.y, np.z)] = c_air
+							elseif pr:next(1,10) == 1 then
 								minetest.sound_play("default_glass_footstep", {pos = np, gain = 0.5, max_hear_distance = 4})
 							end
 						else
-							destroy_node(np)
+--							destroy_node(np)
+							nodes[area:index(np.x, np.y, np.z)] = c_air
 						end
-					--[[elseif n.name == "default:chest" then
-						local p = pos
-						while minetest.env:get_node({x=p.x, y=p.y-1, z=p.z}).name == "air" do
-							p.y=p.y-1
-						end
+					end
+--					activate_if_tnt(n.name, np, pos, range)
+				end
+			end
+		end
+	end
+	manip:set_data(nodes)
+	manip:write_to_map()
+	print(string.format("[nuke] exploded in: %.2fs", os.clock() - t1))
+	if range <= 100 then
+		local t1 = os.clock()
+		manip:update_map()
+		print(string.format("[nuke] map updated in: %.2fs", os.clock() - t1))
+	end
+end
 
-						minetest.env:add_node(p, {name="default:chest"})
-						minetest.env:get_meta(minetest.env:get_meta(pos))]]
+local function explode_invert(pos, range)
+	local t1 = os.clock()
+	local manip = minetest.get_voxel_manip()
+	local width = range+1
+	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
+		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
+	local area = VoxelArea:new({MinEdge=emerged_pos1, MaxEdge=emerged_pos2})
+
+	local nodes = {}
+	local ignore = minetest.get_content_id("ignore")
+	for i = 1, get_volume(emerged_pos1, emerged_pos2) do
+		nodes[i] = ignore
+	end
+
+	local c_air = minetest.get_content_id("air")
+
+	local radius = range^2 + range
+	for x=-range,range do
+		for y=-range,range do
+			for z=-range,range do
+				local r = x^2+y^2+z^2 
+				if r <= radius then
+					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
+					local i_np=area:index(pos.x+x, pos.y-y, pos.z+z)
+					local n = minetest.env:get_node(np).name
+					local content = minetest.get_content_id(n)
+					if math.floor(math.sqrt(r) +0.5) > range-1 then
+						if math.random(1,5) >= 2 then
+							nodes[i_np] = content
+						elseif math.random(1,10) == 1 then
+							minetest.sound_play("default_glass_footstep", {pos = np, gain = 0.5, max_hear_distance = 4})
+						end
+					else
+						nodes[i_np] = content
 					end
 					activate_if_tnt(n.name, np, pos, range)
 				end
 			end
 		end
 	end
+	manip:set_data(nodes)
+	manip:write_to_map()
+	print(string.format("[nuke] exploded in: %.2fs", os.clock() - t1))
+	local t1 = os.clock()
+	manip:update_map()
+	print(string.format("[nuke] map updated in: %.2fs", os.clock() - t1))
 end
 
 local function expl_moss(pos, range)
+	local t1 = os.clock()
+	local manip = minetest.get_voxel_manip()
+	local width = range+1
+	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
+		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
+	local area = VoxelArea:new{MinEdge=emerged_pos1, MaxEdge=emerged_pos2}
+
+	local nodes = manip:get_data()
+	local pr = get_nuke_random(pos)
+
 	local radius = range^2 + range
 	for x=-range,range do
 		for y=-range,range do
 			for z=-range,range do
-				local r = x^2+y^2+z^2 
+				local r = x*x+y*y+z*z 
 				if r <= radius then
 					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
-					local n = minetest.env:get_node(np)
-					if n.name ~= "air"
-					and n.name ~= "default:chest" then
+					local p_np = area:index(np.x, np.y, np.z)
+					local d_p_np = nodes[p_np]
+					if d_p_np ~= c_air
+					and d_p_np ~= c_chest then
 						if math.floor(math.sqrt(r) +0.5) > range-1 then
-							if math.random(1,5) >= 4 then
-								destroy_node(np)
-							elseif math.random(1,50) == 1 then
+							if pr:next(1,5) >= 4 then
+								nodes[p_np] = c_air
+								--destroy_node(np)
+							elseif pr:next(1,50) == 1 then
 								minetest.sound_play("default_glass_footstep", {pos = np, gain = 0.5, max_hear_distance = 4})
 							else
-								for _,node in ipairs(nuke_mossy_nodes) do
-									if n.name == node[1] then
-										minetest.env:add_node (np, {name = node[2]})
+								for _,node in ipairs(nuke_mossy_nds) do
+									if d_p_np == node[1] then
+										nodes[p_np] = node[2]
+										break
 									end
 								end
 							end
 						else
-							destroy_node(np)
+							nodes[p_np] = c_air
+							--destroy_node(np)
 						end
 					end
-					activate_if_tnt(n.name, np, pos, range)
+--					activate_if_tnt(n.name, np, pos, range)
 				end
 			end
 		end
+	end
+	manip:set_data(nodes)
+	manip:write_to_map()
+	print(string.format("[nuke] exploded in: %.2fs", os.clock() - t1))
+	if range <= 100 then
+		local t1 = os.clock()
+		manip:update_map()
+		print(string.format("[nuke] map updated in: %.2fs", os.clock() - t1))
 	end
 end
 
@@ -210,7 +327,7 @@ minetest.register_craft({
 -- Iron TNT
 
 minetest.register_node("nuke:iron_tnt", {
-	tile_images = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
+	tiles = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
 			"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png",
 			"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png"},
 	inventory_image = minetest.inventorycube("nuke_iron_tnt_top.png",
@@ -306,16 +423,11 @@ minetest.register_entity("nuke:iron_tnt", IRON_TNT)
 -- Mese TNT
 
 minetest.register_node("nuke:mese_tnt", {
-	tile_images = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
-			"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png",
-			"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"},
-	inventory_image = minetest.inventorycube("nuke_mese_tnt_top.png",
-			"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"),
-	dug_item = '', -- Get nothing
-	material = {
-		diggability = "not",
-	},
 	description = "Mese Bomb",
+	tiles = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png", "nuke_mese_tnt_side.png"},
+	inventory_image = minetest.inventorycube("nuke_mese_tnt_top.png", "nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"),
+	dug_item = '', -- Get nothing?
+	material = {diggability = "not"},
 })
 
 minetest.register_on_punchnode(function(p, node, puncher)
@@ -327,7 +439,6 @@ minetest.register_on_punchnode(function(p, node, puncher)
 	end
 end)
 
-local MESE_TNT_RANGE = 12
 local MESE_TNT = {
 	-- Static definition
 	physical = true, -- Collides with things
@@ -401,7 +512,7 @@ minetest.register_entity("nuke:mese_tnt", MESE_TNT)
 -- Mossy TNT
 
 minetest.register_node("nuke:mossy_tnt", {
-	tile_images = {"nuke_mossy_tnt_top.png", "nuke_mossy_tnt_bottom.png",
+	tiles = {"nuke_mossy_tnt_top.png", "nuke_mossy_tnt_bottom.png",
 			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png",
 			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"},
 	inventory_image = minetest.inventorycube("nuke_mossy_tnt_top.png",
@@ -496,7 +607,7 @@ minetest.register_entity("nuke:mossy_tnt", MOSSY_TNT)
 -- Hardcore Iron TNT
 
 minetest.register_node("nuke:hardcore_iron_tnt", {
-	tile_images = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
+	tiles = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
 			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png",
 			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png"},
 	inventory_image = minetest.inventorycube("nuke_iron_tnt_top.png",
@@ -590,7 +701,7 @@ minetest.register_entity("nuke:hardcore_iron_tnt", HARDCORE_IRON_TNT)
 -- Hardcore Mese TNT
 
 minetest.register_node("nuke:hardcore_mese_tnt", {
-	tile_images = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
+	tiles = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
 			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png",
 			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png"},
 	inventory_image = minetest.inventorycube("nuke_mese_tnt_top.png",
