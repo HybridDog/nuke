@@ -1,14 +1,11 @@
+local time_load_start = os.clock()
+print("[nuke] loading...")
+
 local nuke_preserve_items = false
 local nuke_drop_items = false --this will only cause lags
 local MESE_TNT_RANGE = 12
-
-
-local function copy_meta(pos, p)
-	local meta0 = minetest.get_meta(pos):to_table()
-	local meta = minetest.get_meta(p)
-	meta:from_table(meta0)
-end
-
+local IRON_TNT_RANGE = 6
+local nuke_seed = 12
 
 if minetest.get_modpath("extrablocks") then
 	nuke_mossy_nodes = {
@@ -29,76 +26,13 @@ for _,node in ipairs(nuke_mossy_nodes) do
 	num = num+1
 end
 
-local function describe_chest()
-	if math.random(5) == 1 then return "You nuked. I HAVE NOT!" end
-	if math.random(10) == 1 then return "Hehe, I'm the result of your explosion hee!" end
-	if math.random(20) == 1 then return "Look into me, I'm fat!" end
-	if math.random(30) == 1 then return "Please don't rob me. Else you are as evil as the other persons who took my inventoried stuff." end
-	if math.random(300) == 1 then return "I'll follow you until I ate you. Like I did with the other objects here..." end
-	return "Feel free to take the nuked items out of me!"
-end
-
-
-
-local function set_chest(p) --add a chest if the previous one is full
-	local pos = p
-	while minetest.env:get_node({x=pos.x, y=pos.y-1, z=pos.z}).name == "air" do
-		pos.y=pos.y-1
-	end
-	minetest.env:add_node(pos, {name="default:chest"})
-	local meta = minetest.get_meta(pos)
-	meta:set_string("formspec",default.chest_formspec)
-	meta:set_string("infotext", describe_chest())
-	local inve = meta:get_inventory()
-	inve:set_size("main", 8*4)
-	nuke_chestpos = pos
-end
-
-local function destroy_node(pos)
-	if nuke_preserve_items then
-		local drops = minetest.get_node_drops(minetest.env:get_node(pos).name)
-		if nuke_drop_items then
-			for _, item in ipairs(drops) do
-				if item ~= "default:cobble" then
-					minetest.env:add_item(pos, item)
-				end
-			end
-		elseif nuke_puncher ~= nil then
-			local inv = nuke_puncher:get_inventory()
-			if inv then
-				for _, item in ipairs(drops) do
-					if inv:room_for_item("main", item) then
-						inv:add_item("main", item)
-					else
-						if nuke_chestpos == nil then
-							set_chest(pos)
-						end
-						local chestinv = minetest.get_meta(nuke_chestpos):get_inventory()
-						if not chestinv:room_for_item("main", item) then
-							set_chest(pos)
-						end
-						chestinv:add_item("main", item)
-					end
-				end
-			end
-		end
-	end
-end
-
 function spawn_tnt(pos, entname)
 	minetest.sound_play("nuke_ignite", {pos = pos,gain = 1.0,max_hear_distance = 8,})
-	return minetest.env:add_entity(pos, entname)
-end
-
-function activate_if_tnt(nname, np, tnt_np, tntr)
-	if nname == "experimental:tnt" or nname == "nuke:iron_tnt" or nname == "nuke:mese_tnt" or nname == "nuke:hardcore_iron_tnt" or nname == "nuke:hardcore_mese_tnt" then
-		local e = spawn_tnt(np, nname)
-		e:setvelocity({x=(np.x - tnt_np.x)*3+(tntr / 4), y=(np.y - tnt_np.y)*3+(tntr / 3), z=(np.z - tnt_np.z)*3+(tntr / 4)})
-	end
+	return minetest.add_entity(pos, entname)
 end
 
 function do_tnt_physics(tnt_np,tntr)
-	local objs = minetest.env:get_objects_inside_radius(tnt_np, tntr)
+	local objs = minetest.get_objects_inside_radius(tnt_np, tntr)
 	for k, obj in pairs(objs) do
 		local oname = obj:get_entity_name()
 		local v = obj:getvelocity()
@@ -121,25 +55,16 @@ local function get_volume(pos1, pos2)
 	return (pos2.x - pos1.x + 1) * (pos2.y - pos1.y + 1) * (pos2.z - pos1.z + 1)
 end
 
-local nuke_seed = 12
 
 local function get_nuke_random(pos)
 	return PseudoRandom(math.abs(pos.x+pos.y*3+pos.z*5)+nuke_seed)
 end
 
-local c_air = minetest.get_content_id("air")
-local c_chest = minetest.get_content_id("default:chest")
 
-local function explode(pos, range)
+local function explosion_table(range)
 	local t1 = os.clock()
-	local manip = minetest.get_voxel_manip()
-	local width = range+1
-	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
-		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
-	local area = VoxelArea:new{MinEdge=emerged_pos1, MaxEdge=emerged_pos2}
-
-	local nodes = manip:get_data()
-	local pr = get_nuke_random(pos)
+	local tab = {}
+	local n = 1
 
 	local radius = range^2 + range
 	for x=-range,range do
@@ -147,26 +72,53 @@ local function explode(pos, range)
 			for z=-range,range do
 				local r = x^2+y^2+z^2 
 				if r <= radius then
-					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
---					local n = minetest.env:get_node(np)
-					local p_np = area:index(np.x, np.y, np.z)
-					local d_p_np = nodes[p_np]
-					if d_p_np ~= c_air
-					and d_p_np ~= c_chest then
-						if math.floor(math.sqrt(r) +0.5) > range-1 then
-							if pr:next(1,5) >= 2 then
---								destroy_node(np)
-								nodes[area:index(np.x, np.y, np.z)] = c_air
-							elseif pr:next(1,10) == 1 then
-								minetest.sound_play("default_glass_footstep", {pos = np, gain = 0.5, max_hear_distance = 4})
-							end
-						else
---							destroy_node(np)
-							nodes[area:index(np.x, np.y, np.z)] = c_air
-						end
+					local np={x=x, y=y, z=z}
+					if math.floor(math.sqrt(r) +0.5) > range-1 then
+						tab[n] = {np, true}
+					else
+						tab[n] = {np}
 					end
---					activate_if_tnt(n.name, np, pos, range)
+					n = n+1
 				end
+			end
+		end
+	end
+	return tab
+end
+
+local mese_tnt_table = explosion_table(MESE_TNT_RANGE)
+local iron_tnt_table = explosion_table(IRON_TNT_RANGE)
+
+
+local c_air = minetest.get_content_id("air")
+local c_chest = minetest.get_content_id("default:chest")
+
+local function explode(pos, tab, range)
+	local t1 = os.clock()
+	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*2})
+
+	local manip = minetest.get_voxel_manip()
+	local width = range+1
+	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
+		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
+	local area = VoxelArea:new{MinEdge=emerged_pos1, MaxEdge=emerged_pos2}
+	local nodes = manip:get_data()
+
+	local pr = get_nuke_random(pos)
+
+	for _,npos in ipairs(tab) do
+		local f = npos[1]
+		local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
+		local p_p = area:index(p.x, p.y, p.z)
+		local d_p_p = nodes[p_p]
+		if d_p_p ~= c_air
+		and d_p_p ~= c_chest then
+			if npos[2] then
+				if pr:next(1,5) >= 2 then
+					nodes[p_p] = c_air
+				end
+			else
+				nodes[p_p] = c_air
 			end
 		end
 	end
@@ -180,63 +132,18 @@ local function explode(pos, range)
 	end
 end
 
-local function explode_invert(pos, range)
-	local t1 = os.clock()
-	local manip = minetest.get_voxel_manip()
-	local width = range+1
-	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
-		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
-	local area = VoxelArea:new({MinEdge=emerged_pos1, MaxEdge=emerged_pos2})
-
-	local nodes = {}
-	local ignore = minetest.get_content_id("ignore")
-	for i = 1, get_volume(emerged_pos1, emerged_pos2) do
-		nodes[i] = ignore
-	end
-
-	local c_air = minetest.get_content_id("air")
-
-	local radius = range^2 + range
-	for x=-range,range do
-		for y=-range,range do
-			for z=-range,range do
-				local r = x^2+y^2+z^2 
-				if r <= radius then
-					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
-					local i_np=area:index(pos.x+x, pos.y-y, pos.z+z)
-					local n = minetest.env:get_node(np).name
-					local content = minetest.get_content_id(n)
-					if math.floor(math.sqrt(r) +0.5) > range-1 then
-						if math.random(1,5) >= 2 then
-							nodes[i_np] = content
-						elseif math.random(1,10) == 1 then
-							minetest.sound_play("default_glass_footstep", {pos = np, gain = 0.5, max_hear_distance = 4})
-						end
-					else
-						nodes[i_np] = content
-					end
-					activate_if_tnt(n.name, np, pos, range)
-				end
-			end
-		end
-	end
-	manip:set_data(nodes)
-	manip:write_to_map()
-	print(string.format("[nuke] exploded in: %.2fs", os.clock() - t1))
-	local t1 = os.clock()
-	manip:update_map()
-	print(string.format("[nuke] map updated in: %.2fs", os.clock() - t1))
-end
 
 local function expl_moss(pos, range)
 	local t1 = os.clock()
+	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*2})
+
 	local manip = minetest.get_voxel_manip()
 	local width = range+1
 	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
 		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
 	local area = VoxelArea:new{MinEdge=emerged_pos1, MaxEdge=emerged_pos2}
-
 	local nodes = manip:get_data()
+
 	local pr = get_nuke_random(pos)
 
 	local radius = range^2 + range
@@ -287,39 +194,44 @@ end
 
 --Crafting:
 
+local w = 'default:wood'
+local c = 'default:coal_lump'
+local s = 'default:steel_ingot'
+local m = 'default:mese_crystal'
+
 minetest.register_craft({
 	output = 'nuke:iron_tnt 4',
 	recipe = {
-		{'','default:wood',''},
-		{'default:steel_ingot','default:coal_lump','default:steel_ingot'},
-		{'','default:wood',''}
+		{'', w, ''},
+		{ s, c, s },
+		{'', w, ''}
 	}
 })
 
 minetest.register_craft({
 	output = 'nuke:mese_tnt 4',
 	recipe = {
-		{'','default:wood',''},
-		{'default:mese_crystal','default:coal_lump','default:mese_crystal'},
-		{'','default:wood',''}
+		{'', w, ''},
+		{ m, c, m },
+		{'', w, ''}
 	}
 })
 
 minetest.register_craft({
 	output = 'nuke:hardcore_iron_tnt',
 	recipe = {
-		{'','default:coal_lump',''},
-		{'default:coal_lump','nuke:iron_tnt','default:coal_lump'},
-		{'','default:coal_lump',''}
+		{'', c, ''},
+		{c, 'nuke:iron_tnt', c},
+		{'', c, ''}
 	}
 })
 
 minetest.register_craft({
 	output = 'nuke:hardcore_mese_tnt',
 	recipe = {
-		{'','default:coal_lump',''},
-		{'default:coal_lump','nuke:mese_tnt','default:coal_lump'},
-		{'','default:coal_lump',''}
+		{'', c, ''},
+		{c, 'nuke:mese_tnt', c},
+		{'', c, ''}
 	}
 })
 
@@ -341,14 +253,13 @@ minetest.register_node("nuke:iron_tnt", {
 
 minetest.register_on_punchnode(function(p, node, puncher)
 	if node.name == "nuke:iron_tnt" then
-		minetest.env:remove_node(p)
+		minetest.remove_node(p)
 		spawn_tnt(p, "nuke:iron_tnt")
 		nodeupdate(p)
 		nuke_puncher = puncher
 	end
 end)
 
-local IRON_TNT_RANGE = 6
 local IRON_TNT = {
 	-- Static definition
 	physical = true, -- Collides with things
@@ -398,13 +309,12 @@ function IRON_TNT:on_step(dtime)
 		pos.y = math.floor(pos.y+0.5)
 		pos.z = math.floor(pos.z+0.5)
 		do_tnt_physics(pos, IRON_TNT_RANGE)
-		minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
-		if minetest.env:get_node(pos).name == "default:water_source" or minetest.env:get_node(pos).name == "default:water_flowing" then
+		if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
 			-- Cancel the Explosion
 			self.object:remove()
 			return
 		end
-		explode(pos, IRON_TNT_RANGE)
+		explode(pos, iron_tnt_table, IRON_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -432,7 +342,7 @@ minetest.register_node("nuke:mese_tnt", {
 
 minetest.register_on_punchnode(function(p, node, puncher)
 	if node.name == "nuke:mese_tnt" then
-		minetest.env:remove_node(p)
+		minetest.remove_node(p)
 		spawn_tnt(p, "nuke:mese_tnt")
 		nodeupdate(p)
 		nuke_puncher = puncher
@@ -487,13 +397,12 @@ function MESE_TNT:on_step(dtime)
 		pos.y = math.floor(pos.y+0.5)
 		pos.z = math.floor(pos.z+0.5)
 		do_tnt_physics(pos, MESE_TNT_RANGE)
-		minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
-		if minetest.env:get_node(pos).name == "default:water_source" or minetest.env:get_node(pos).name == "default:water_flowing" then
+		if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
 			-- Cancel the Explosion
 			self.object:remove()
 			return
 		end
-		explode(pos, MESE_TNT_RANGE)
+		explode(pos, mese_tnt_table, MESE_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -526,7 +435,7 @@ minetest.register_node("nuke:mossy_tnt", {
 
 minetest.register_on_punchnode(function(p, node, puncher)
 	if node.name == "nuke:mossy_tnt" then
-		minetest.env:remove_node(p)
+		minetest.remove_node(p)
 		spawn_tnt(p, "nuke:mossy_tnt")
 		nodeupdate(p)
 		nuke_puncher = puncher
@@ -582,8 +491,7 @@ function MOSSY_TNT:on_step(dtime)
 		pos.y = math.floor(pos.y+0.5)
 		pos.z = math.floor(pos.z+0.5)
 		do_tnt_physics(pos, MOSSY_TNT_RANGE)
-		minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
-		if minetest.env:get_node(pos).name == "default:water_source" or minetest.env:get_node(pos).name == "default:water_flowing" then
+		if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
 			-- Cancel the Explosion
 			self.object:remove()
 			return
@@ -621,7 +529,7 @@ minetest.register_node("nuke:hardcore_iron_tnt", {
 
 minetest.register_on_punchnode(function(p, node)
 	if node.name == "nuke:hardcore_iron_tnt" then
-		minetest.env:remove_node(p)
+		minetest.remove_node(p)
 		spawn_tnt(p, "nuke:hardcore_iron_tnt")
 		nodeupdate(p)
 	end
@@ -680,7 +588,7 @@ function HARDCORE_IRON_TNT:on_step(dtime)
 		for z=-HARDCORE_IRON_TNT_RANGE,HARDCORE_IRON_TNT_RANGE do
 			if x*x+z*z <= HARDCORE_IRON_TNT_RANGE * HARDCORE_IRON_TNT_RANGE + HARDCORE_IRON_TNT_RANGE then
 				local np={x=pos.x+x,y=pos.y,z=pos.z+z}
-				minetest.env:add_entity(np, "nuke:iron_tnt")
+				minetest.add_entity(np, "nuke:iron_tnt")
 			end
 		end
 		end
@@ -715,7 +623,7 @@ minetest.register_node("nuke:hardcore_mese_tnt", {
 
 minetest.register_on_punchnode(function(p, node)
 	if node.name == "nuke:hardcore_mese_tnt" then
-		minetest.env:remove_node(p)
+		minetest.remove_node(p)
 		spawn_tnt(p, "nuke:hardcore_mese_tnt")
 		nodeupdate(p)
 	end
@@ -774,7 +682,7 @@ function HARDCORE_MESE_TNT:on_step(dtime)
 		for z=-HARDCORE_MESE_TNT_RANGE,HARDCORE_MESE_TNT_RANGE do
 			if x*x+z*z <= HARDCORE_MESE_TNT_RANGE * HARDCORE_MESE_TNT_RANGE + HARDCORE_MESE_TNT_RANGE then
 				local np={x=pos.x+x,y=pos.y,z=pos.z+z}
-				minetest.env:add_entity(np, "nuke:mese_tnt")
+				minetest.add_entity(np, "nuke:mese_tnt")
 			end
 		end
 		end
@@ -791,3 +699,5 @@ function HARDCORE_MESE_TNT:on_punch(hitter)
 end
 
 minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
+
+print(string.format("[nuke] loaded after ca. %.2fs", os.clock() - time_load_start))
