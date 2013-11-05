@@ -26,6 +26,23 @@ for _,node in ipairs(nuke_mossy_nodes) do
 	num = num+1
 end
 
+local function r_area(manip, size, pos)
+	local emerged_pos1, emerged_pos2 = manip:read_from_map(
+		{x=pos.x-size, y=pos.y-size, z=pos.z-size},
+		{x=pos.x+size, y=pos.y+size, z=pos.z+size}
+	)
+	return VoxelArea:new({MinEdge=emerged_pos1, MaxEdge=emerged_pos2})
+end
+
+local function set_vm_data(manip, nodes, pos, t1, msg)
+	manip:set_data(nodes)
+	manip:write_to_map()
+	print(string.format("[nuke] "..msg.." at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+	local t1 = os.clock()
+	manip:update_map()
+	print(string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
+end
+
 function spawn_tnt(pos, entname)
 	minetest.sound_play("nuke_ignite", {pos = pos,gain = 1.0,max_hear_distance = 8,})
 	return minetest.add_entity(pos, entname)
@@ -83,12 +100,9 @@ local function explosion_table(range)
 			end
 		end
 	end
+	print(string.format("[nuke] table created after: %.2fs", os.clock() - t1))
 	return tab
 end
-
-local mese_tnt_table = explosion_table(MESE_TNT_RANGE)
-local iron_tnt_table = explosion_table(IRON_TNT_RANGE)
-
 
 local c_air = minetest.get_content_id("air")
 local c_chest = minetest.get_content_id("default:chest")
@@ -98,10 +112,7 @@ local function explode(pos, tab, range)
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*2})
 
 	local manip = minetest.get_voxel_manip()
-	local width = range+1
-	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
-		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
-	local area = VoxelArea:new{MinEdge=emerged_pos1, MaxEdge=emerged_pos2}
+	local area = r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
 	local pr = get_nuke_random(pos)
@@ -122,14 +133,7 @@ local function explode(pos, tab, range)
 			end
 		end
 	end
-	manip:set_data(nodes)
-	manip:write_to_map()
-	print(string.format("[nuke] exploded in: %.2fs", os.clock() - t1))
-	if range <= 100 then
-		local t1 = os.clock()
-		manip:update_map()
-		print(string.format("[nuke] map updated in: %.2fs", os.clock() - t1))
-	end
+	set_vm_data(manip, nodes, pos, t1, "exploded")
 end
 
 
@@ -138,10 +142,7 @@ local function expl_moss(pos, range)
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*2})
 
 	local manip = minetest.get_voxel_manip()
-	local width = range+1
-	local emerged_pos1, emerged_pos2 = manip:read_from_map({x=pos.x-width, y=pos.y-width, z=pos.z-width},
-		{x=pos.x+width, y=pos.y+width, z=pos.z+width})
-	local area = VoxelArea:new{MinEdge=emerged_pos1, MaxEdge=emerged_pos2}
+	local area = r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
 	local pr = get_nuke_random(pos)
@@ -181,14 +182,7 @@ local function expl_moss(pos, range)
 			end
 		end
 	end
-	manip:set_data(nodes)
-	manip:write_to_map()
-	print(string.format("[nuke] exploded in: %.2fs", os.clock() - t1))
-	if range <= 100 then
-		local t1 = os.clock()
-		manip:update_map()
-		print(string.format("[nuke] map updated in: %.2fs", os.clock() - t1))
-	end
+	set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
 end
 
 
@@ -281,6 +275,9 @@ function IRON_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
+	if not iron_tnt_table then
+		iron_tnt_table = explosion_table(IRON_TNT_RANGE)
+	end
 end
 
 function IRON_TNT:on_step(dtime)
@@ -370,6 +367,9 @@ function MESE_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
+	if not mese_tnt_table then
+		mese_tnt_table = explosion_table(MESE_TNT_RANGE)
+	end
 end
 
 function MESE_TNT:on_step(dtime)
