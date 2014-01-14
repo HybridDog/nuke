@@ -133,6 +133,7 @@ local function explode(pos, tab, range)
 	local pr = get_nuke_random(pos)
 
 	for _,npos in ipairs(tab) do
+
 		local f = npos[1]
 		local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
 		local p_p = area:index(p.x, p.y, p.z)
@@ -140,7 +141,7 @@ local function explode(pos, tab, range)
 		if d_p_p ~= c_air
 		and d_p_p ~= c_chest then
 			if npos[2] then
-				if pr:next(1,5) >= 2 then
+				if pr:next(1,2) == 1 then
 					nodes[p_p] = c_air
 				end
 			else
@@ -151,8 +152,99 @@ local function explode(pos, tab, range)
 	set_vm_data(manip, nodes, pos, t1, "exploded")
 end
 
+local function explode_mossy(pos, tab, range)
+	local t1 = os.clock()
+	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 
-local function expl_moss(pos, range)
+	local manip = minetest.get_voxel_manip()
+	local area = r_area(manip, range+1, pos)
+	local nodes = manip:get_data()
+
+	local pr = get_nuke_random(pos)
+
+	for _,npos in ipairs(tab) do
+
+		local f = npos[1]
+		local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
+		local p_p = area:index(p.x, p.y, p.z)
+		local d_p_p = nodes[p_p]
+		if d_p_p ~= c_air
+		and d_p_p ~= c_chest then
+			if npos[2] then
+				if pr:next(1,5) >= 4 then
+					nodes[p_p] = c_air
+				else
+					for _,node in ipairs(nuke.mossy_nds) do
+						if d_p_p == node[1] then
+							nodes[p_p] = node[2]
+							break
+						end
+					end
+				end
+			else
+				nodes[p_p] = c_air
+			end
+		end
+	end
+	set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
+end
+
+local function explode_tnt(pos, tab, range)
+	local t1 = os.clock()
+	minetest.add_particle(pos, {x=0,y=0,z=0}, {x=0,y=0,z=0}, 0.5, 16*(range*2-1), false, "smoke_puff.png")
+	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
+	for _,i in ipairs({
+		{{x=pos.x-range, y=pos.y-range, z=pos.z-range}, {x=-3, y=0, z=-3}},
+		{{x=pos.x+range, y=pos.y-range, z=pos.z-range}, {x=3, y=0, z=-3}},
+		{{x=pos.x-range, y=pos.y-range, z=pos.z+range}, {x=-3, y=0, z=3}},
+		{{x=pos.x+range, y=pos.y-range, z=pos.z+range}, {x=3, y=0, z=3}},
+	}) do
+		minetest.add_particlespawner(
+			5*range, --amount
+			0.1, --time
+			i[1], --minpos
+			{x=pos.x, y=pos.y+range, z=pos.z}, --maxpos
+			i[2], --minvel
+			{x=0, y=0, z=0}, --maxvel
+			{x=0,y=5,z=0}, --minacc
+			{x=0,y=10,z=0}, --maxacc
+			0.1, --minexptime
+			1, --maxexptime
+			8, --minsize
+			15, --maxsize
+			false, --collisiondetection
+			"smoke_puff.png" --texture
+		)
+	end
+
+	local manip = minetest.get_voxel_manip()
+	local area = r_area(manip, range+1, pos)
+	local nodes = manip:get_data()
+
+	local pr = get_nuke_random(pos)
+
+	for _,npos in ipairs(tab) do
+
+		local f = npos[1]
+		local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
+		local p_p = area:index(p.x, p.y, p.z)
+		local d_p_p = nodes[p_p]
+		if d_p_p ~= c_air
+		and d_p_p ~= c_chest then
+			if npos[2] then
+				if pr:next(1,2) == 1 then
+					nodes[p_p] = c_air
+				end
+			else
+				nodes[p_p] = c_air
+			end
+		end
+	end
+	set_vm_data(manip, nodes, pos, t1, "exploded (tnt)")
+end
+
+
+--[[local function expl_moss(pos, range)
 	local t1 = os.clock()
 
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
@@ -197,7 +289,7 @@ local function expl_moss(pos, range)
 		end
 	end
 	set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
-end
+end]]
 
 
 minetest.register_chatcommand('nuke_switch_map_update',{
@@ -445,6 +537,9 @@ function MOSSY_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
+	if not mossy_tnt_table then
+		mossy_tnt_table = explosion_table(MOSSY_TNT_RANGE)
+	end
 end
 
 function MOSSY_TNT:on_step(dtime)
@@ -467,18 +562,14 @@ function MOSSY_TNT:on_step(dtime)
 		self.blinkstatus = not self.blinkstatus
 	end
 	if self.timer > 10 then
-		local pos = self.object:getpos()
-		pos.x = math.floor(pos.x+0.5)
-		pos.y = math.floor(pos.y+0.5)
-		pos.z = math.floor(pos.z+0.5)
+		local pos = vector.round(self.object:getpos())
 		do_tnt_physics(pos, MOSSY_TNT_RANGE)
 		if minetest.get_node(pos).name == "default:water_source"
 		or minetest.get_node(pos).name == "default:water_flowing" then
-			-- Cancel the Explosion
 			self.object:remove()
 			return
 		end
-		expl_moss(pos, MOSSY_TNT_RANGE)
+		explode_mossy(pos, mossy_tnt_table, MOSSY_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -681,12 +772,23 @@ end
 minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
 
 
+
+
+
+
+
+
+
+
+
 -- Rocket Launcher
 
 --license LGPLv2+
 
-nuke.rocket_speed = 2
+nuke.rocket_speed = 1
 nuke.rocket_a = 200
+nuke.rocket_range = 3
+nuke.rocket_expl_range = 12
 local r_corr = 0.25 --sth like antialiasing
 
 local f_1 = 0.5-r_corr
@@ -709,10 +811,10 @@ local function rocket_expl(pos, player, pos2)
 	or nodenam == "default:water_flowing" then
 		return false
 	end
-	local delay = nuke.timeacc(vector.distance(pos,pos2), nuke.rocket_speed, nuke.rocket_a)
+	local delay = nuke.timeacc(math.max(vector.distance(pos,pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
 	minetest.after(delay, function(pos)
-		do_tnt_physics(pos, MOSSY_TNT_RANGE)
-		expl_moss(pos, MOSSY_TNT_RANGE)
+		do_tnt_physics(pos, nuke.rocket_expl_range)
+		explode_tnt(pos, rocket_launcher_tnt_table, nuke.rocket_expl_range)
 	end, pos)
 	return true
 end
@@ -814,13 +916,13 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	local dir=player:get_look_dir()
 
 	local startpos = {x=playerpos.x, y=playerpos.y+1.6, z=playerpos.z}
+	nuke.rocket_nodes(vector.round(startpos), dir, player, range)
 	minetest.add_particle(startpos,
 		{x=dir.x*nuke.rocket_speed, y=dir.y*nuke.rocket_speed, z=dir.z*nuke.rocket_speed},
 		{x=dir.x*nuke.rocket_a, y=dir.y*nuke.rocket_a, z=dir.z*nuke.rocket_a},
 		nuke.timeacc(range, nuke.rocket_speed, nuke.rocket_a),
 		1, false, particle_texture
 	)
-	nuke.rocket_nodes(vector.round(startpos), dir, player, range)
 	minetest.sound_play(sound, {pos = playerpos, gain = 1.0, max_hear_distance = range})
 
 	print("[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
@@ -831,7 +933,10 @@ minetest.register_tool("nuke:rocket_launcher", {
 	inventory_image = "firearms_bazooka.png",
 	stack_max = 1,
 	on_use = function(itemstack, user)
-		nuke.rocket_shoot(user, 30, "firearms_rocket_entity.png", "firearms_m79_shot")
+		if not rocket_launcher_tnt_table then
+			rocket_launcher_tnt_table = explosion_table(nuke.rocket_expl_range)
+		end
+		nuke.rocket_shoot(user, nuke.rocket_range, "firearms_rocket_entity.png", "firearms_m79_shot")
 	end,
 })
 
