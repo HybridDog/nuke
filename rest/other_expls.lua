@@ -100,30 +100,6 @@ end
 
 
 
-local function describe_chest()
-	if math.random(5) == 1 then return "You nuked. I HAVE NOT!" end
-	if math.random(10) == 1 then return "Hehe, I'm the result of your explosion hee!" end
-	if math.random(20) == 1 then return "Look into me, I'm fat!" end
-	if math.random(30) == 1 then return "Please don't rob me. Else you are as evil as the other persons who took my inventoried stuff." end
-	if math.random(300) == 1 then return "I'll follow you until I ate you. Like I did with the other objects here..." end
-	return "Feel free to take the nuked items out of me!"
-end
-
-
-
-local function set_chest(p) --add a chest if the previous one is full
-	local pos = p
-	while minetest.get_node({x=pos.x, y=pos.y-1, z=pos.z}).name == "air" do
-		pos.y=pos.y-1
-	end
-	minetest.add_node(pos, {name="default:chest"})
-	local meta = minetest.get_meta(pos)
-	meta:set_string("formspec",default.chest_formspec)
-	meta:set_string("infotext", describe_chest())
-	local inve = meta:get_inventory()
-	inve:set_size("main", 8*4)
-	nuke_chestpos = pos
-end
 
 local function destroy_node(pos)
 	if nuke_preserve_items then

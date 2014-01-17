@@ -3,16 +3,18 @@ print("[nuke] loading...")
 
 nuke = nuke or {}
 
---nuke.preserve_items = false
 --nuke.drop_items = false --this will only cause lags
 local MESE_TNT_RANGE = 12
 local IRON_TNT_RANGE = 6
+local MOSSY_TNT_RANGE = 2
+nuke.preserve_items = false
 nuke.seed = 12
 nuke.bombs_list = {
 	{"iron", "Iron"},
 	{"mese", "Mese"},
 	{"mossy", "Mossy"}
 }
+nuke.explosions = {}
 
 minetest.after(3, function()
 	if minetest.get_modpath("extrablocks") then
@@ -122,7 +124,81 @@ end
 local c_air = minetest.get_content_id("air")
 local c_chest = minetest.get_content_id("default:chest")
 
-local function explode(pos, tab, range)
+local function add_c_to_tab(tab, c, nd)
+	if not nd then
+		tab[c] = 1
+	else
+		tab[c] = nd+1
+	end
+	return tab
+end
+
+local chest_descs = {
+	{5, "You nuked. I HAVE NOT!"},
+	{10, "Hehe, I'm the result of your explosion hee!"},
+	{20, "Look into me, I'm fat!"},
+	{30, "Please don't rob me. Else you are as evil as the other persons who took my inventoried stuff."},
+	{300, "I'll follow you until I ate you. Like I did with the other objects here..."},
+}
+
+function nuke.describe_chest()
+	for _,i in ipairs(chest_descs) do
+		if math.random(i[1]) == 1 then
+			return i[2]
+		end
+	end
+	return "Feel free to take the nuked items out of me!"
+end
+
+function nuke.set_chest(pos) --add a chest
+	minetest.add_node(pos, {name="default:chest"})
+	local meta = minetest.get_meta(pos)
+	meta:set_string("formspec", default.chest_formspec)
+	meta:set_string("infotext", describe_chest())
+	local inve = meta:get_inventory()
+	inve:set_size("main", 8*4)
+	nuke_chestpos = pos
+end
+
+local function get_drops(data)
+	local tab = {}
+	for c,n in pairs(data) do
+		local nodename = minetest.get_name_from_content_id(c)
+		while n > 0 do
+			local drops = minetest.get_node_drops(nodename)
+			for _, item in ipairs(drops) do
+				local curcnt = tab[item]
+				if not curcnt then
+					tab[item] = 1
+				else
+					tab[item] = curcnt+1
+				end
+			end
+			n = n-1
+		end
+	end
+	return tab
+end
+
+local function add_to_inv(nodes)
+	local inv = nuke_puncher:get_inventory()
+	if not inv then
+		return
+	end
+	for name,cnt in pairs(nodes) do
+		local item = name.." "..cnt
+		if inv:room_for_item("main", item) then
+			inv:add_item("main", item)
+		end
+	end
+end
+
+local function move_items(data)
+	local drops = get_drops(data)
+	add_to_inv(drops)
+end
+
+function nuke.explode(pos, tab, range)
 	local t1 = os.clock()
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 
@@ -132,27 +208,51 @@ local function explode(pos, tab, range)
 
 	local pr = get_nuke_random(pos)
 
-	for _,npos in ipairs(tab) do
-
-		local f = npos[1]
-		local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
-		local p_p = area:index(p.x, p.y, p.z)
-		local d_p_p = nodes[p_p]
-		if d_p_p ~= c_air
-		and d_p_p ~= c_chest then
-			if npos[2] then
-				if pr:next(1,2) == 1 then
+	if nuke.preserve_items then
+		node_tab = {}
+		num = 1
+		for _,npos in ipairs(tab) do
+			local f = npos[1]
+			local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
+			local p_p = area:index(p.x, p.y, p.z)
+			local d_p_p = nodes[p_p]
+			if d_p_p ~= c_air
+			and d_p_p ~= c_chest then
+				local nd = node_tab[d_p_p]
+				if npos[2] then
+					if pr:next(1,2) == 1 then
+						node_tab = add_c_to_tab(node_tab, d_p_p, nd)
+						nodes[p_p] = c_air
+					end
+				else
+					node_tab = add_c_to_tab(node_tab, d_p_p, nd)
 					nodes[p_p] = c_air
 				end
-			else
-				nodes[p_p] = c_air
+			end
+		end
+		move_items(node_tab)
+	else
+		for _,npos in ipairs(tab) do
+			local f = npos[1]
+			local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
+			local p_p = area:index(p.x, p.y, p.z)
+			local d_p_p = nodes[p_p]
+			if d_p_p ~= c_air
+			and d_p_p ~= c_chest then
+				if npos[2] then
+					if pr:next(1,2) == 1 then
+						nodes[p_p] = c_air
+					end
+				else
+					nodes[p_p] = c_air
+				end
 			end
 		end
 	end
 	set_vm_data(manip, nodes, pos, t1, "exploded")
 end
 
-local function explode_mossy(pos, tab, range)
+function nuke.explode_mossy(pos, tab, range)
 	local t1 = os.clock()
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 
@@ -189,10 +289,8 @@ local function explode_mossy(pos, tab, range)
 	set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
 end
 
-local function explode_tnt(pos, tab, range)
-	local t1 = os.clock()
+function nuke.explode_tnt(pos, tab, range)
 	minetest.add_particle(pos, {x=0,y=0,z=0}, {x=0,y=0,z=0}, 0.5, 16*(range*2-1), false, "smoke_puff.png")
-	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 	for _,i in ipairs({
 		{{x=pos.x-range, y=pos.y-range, z=pos.z-range}, {x=-3, y=0, z=-3}},
 		{{x=pos.x+range, y=pos.y-range, z=pos.z-range}, {x=3, y=0, z=-3}},
@@ -216,31 +314,7 @@ local function explode_tnt(pos, tab, range)
 			"smoke_puff.png" --texture
 		)
 	end
-
-	local manip = minetest.get_voxel_manip()
-	local area = r_area(manip, range+1, pos)
-	local nodes = manip:get_data()
-
-	local pr = get_nuke_random(pos)
-
-	for _,npos in ipairs(tab) do
-
-		local f = npos[1]
-		local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
-		local p_p = area:index(p.x, p.y, p.z)
-		local d_p_p = nodes[p_p]
-		if d_p_p ~= c_air
-		and d_p_p ~= c_chest then
-			if npos[2] then
-				if pr:next(1,2) == 1 then
-					nodes[p_p] = c_air
-				end
-			else
-				nodes[p_p] = c_air
-			end
-		end
-	end
-	set_vm_data(manip, nodes, pos, t1, "exploded (tnt)")
+	nuke.explode(pos, tab, range)
 end
 
 
@@ -422,7 +496,7 @@ function IRON_TNT:on_step(dtime)
 			self.object:remove()
 			return
 		end
-		explode(pos, iron_tnt_table, IRON_TNT_RANGE)
+		nuke.explode(pos, iron_tnt_table, IRON_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -440,23 +514,28 @@ minetest.register_entity("nuke:iron_tnt", IRON_TNT)
 
 -- Mese TNT
 
+function nuke.tnt_ent(textures)
+	return {
+		-- Static definition
+		physical = true, -- Collides with things
+		-- weight = 5,
+		collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
+		visual = "cube",
+		textures = textures,
+		-- Initial value for our timer
+		timer = 0,
+		-- Number of punches required to defuse
+		health = 1,
+		blinktimer = 0,
+		blinkstatus = true
+	}
+end
 
-local MESE_TNT = {
-	-- Static definition
-	physical = true, -- Collides with things
-	-- weight = 5,
-	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
-	visual = "cube",
-	textures = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
-			"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png",
-			"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"},
-	-- Initial value for our timer
-	timer = 0,
-	-- Number of punches required to defuse
-	health = 1,
-	blinktimer = 0,
-	blinkstatus = true,
-}
+local MESE_TNT = nuke.tnt_ent({
+	"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
+	"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png",
+	"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"
+})
 
 function MESE_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
@@ -497,7 +576,7 @@ function MESE_TNT:on_step(dtime)
 			self.object:remove()
 			return
 		end
-		explode(pos, mese_tnt_table, MESE_TNT_RANGE)
+		nuke.explode(pos, mese_tnt_table, MESE_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -515,23 +594,11 @@ minetest.register_entity("nuke:mese_tnt", MESE_TNT)
 
 -- Mossy TNT
 
-local MOSSY_TNT_RANGE = 2
-local MOSSY_TNT = {
-	-- Static definition
-	physical = true, -- Collides with things
-	-- weight = 5,
-	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
-	visual = "cube",
-	textures = {"nuke_mossy_tnt_top.png", "nuke_mossy_tnt_bottom.png",
-			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png",
-			"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"},
-	-- Initial value for our timer
-	timer = 0,
-	-- Number of punches required to defuse
-	health = 1,
-	blinktimer = 0,
-	blinkstatus = true,
-}
+local MOSSY_TNT = nuke.tnt_ent({
+	"nuke_mossy_tnt_top.png", "nuke_mossy_tnt_bottom.png",
+	"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png",
+	"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"
+})
 
 function MOSSY_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
@@ -569,7 +636,7 @@ function MOSSY_TNT:on_step(dtime)
 			self.object:remove()
 			return
 		end
-		explode_mossy(pos, mossy_tnt_table, MOSSY_TNT_RANGE)
+		nuke.explode_mossy(pos, mossy_tnt_table, MOSSY_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -785,10 +852,11 @@ minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
 
 --license LGPLv2+
 
+
 nuke.rocket_speed = 1
-nuke.rocket_a = 200
-nuke.rocket_range = 3
-nuke.rocket_expl_range = 12
+nuke.rocket_a = 100
+nuke.rocket_range = 100
+nuke.rocket_expl_range = 3
 local r_corr = 0.25 --sth like antialiasing
 
 local f_1 = 0.5-r_corr
@@ -804,7 +872,7 @@ local function table_contains(t, v)
 	return false
 end
 
-local function rocket_expl(pos, player, pos2)
+local function rocket_expl(pos, player, pos2, sound)
 	local nodenam = minetest.get_node(pos).name
 	if nodenam == "air"
 	or nodenam == "default:water_source"
@@ -813,8 +881,9 @@ local function rocket_expl(pos, player, pos2)
 	end
 	local delay = nuke.timeacc(math.max(vector.distance(pos,pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
 	minetest.after(delay, function(pos)
+		minetest.sound_stop(sound)
 		do_tnt_physics(pos, nuke.rocket_expl_range)
-		explode_tnt(pos, rocket_launcher_tnt_table, nuke.rocket_expl_range)
+		nuke.explode_tnt(pos, nuke.explosions[nuke.rocket_expl_range], nuke.rocket_expl_range)
 	end, pos)
 	return true
 end
@@ -852,7 +921,7 @@ local function node_tab(z, d)
 	return {n1, n2}
 end
 
-function nuke.rocket_nodes(pos, dir, player, range)
+function nuke.rocket_nodes(pos, dir, player, range, sound)
 	local t_dir = get_used_dir(dir)
 	local dir_typ = t_dir[1]
 	if t_dir[3] == "+" then
@@ -868,7 +937,7 @@ function nuke.rocket_nodes(pos, dir, player, range)
 			local ztab = node_tab(d_ch.z, d)
 			for _,y in ipairs(ytab) do
 				for _,z in ipairs(ztab) do
-					if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos) then
+					if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos, sound) then
 						return
 					end
 				end
@@ -883,7 +952,7 @@ function nuke.rocket_nodes(pos, dir, player, range)
 			local ztab = node_tab(d_ch.z, d)
 			for _,x in ipairs(xtab) do
 				for _,z in ipairs(ztab) do
-					if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos) then
+					if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos, sound) then
 						return
 					end
 				end
@@ -897,7 +966,7 @@ function nuke.rocket_nodes(pos, dir, player, range)
 		local z = d
 		for _,x in ipairs(xtab) do
 			for _,y in ipairs(ytab) do
-				if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos) then
+				if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos, sound) then
 					return
 				end
 			end
@@ -916,27 +985,27 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	local dir=player:get_look_dir()
 
 	local startpos = {x=playerpos.x, y=playerpos.y+1.6, z=playerpos.z}
-	nuke.rocket_nodes(vector.round(startpos), dir, player, range)
+	nuke.rocket_nodes(vector.round(startpos), dir, player, range, minetest.sound_play(sound, {pos = playerpos, gain = 1.0, max_hear_distance = range}))
 	minetest.add_particle(startpos,
 		{x=dir.x*nuke.rocket_speed, y=dir.y*nuke.rocket_speed, z=dir.z*nuke.rocket_speed},
 		{x=dir.x*nuke.rocket_a, y=dir.y*nuke.rocket_a, z=dir.z*nuke.rocket_a},
 		nuke.timeacc(range, nuke.rocket_speed, nuke.rocket_a),
 		1, false, particle_texture
 	)
-	minetest.sound_play(sound, {pos = playerpos, gain = 1.0, max_hear_distance = range})
 
 	print("[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
 end
 
 minetest.register_tool("nuke:rocket_launcher", {
 	description = "Rocket Launcher",
-	inventory_image = "firearms_bazooka.png",
+	inventory_image = "nuke_rocket_launcher.png",
 	stack_max = 1,
 	on_use = function(itemstack, user)
-		if not rocket_launcher_tnt_table then
-			rocket_launcher_tnt_table = explosion_table(nuke.rocket_expl_range)
+		nuke_puncher = user
+		if not nuke.explosions[nuke.rocket_expl_range] then
+			nuke.explosions[nuke.rocket_expl_range] = explosion_table(nuke.rocket_expl_range)
 		end
-		nuke.rocket_shoot(user, nuke.rocket_range, "firearms_rocket_entity.png", "firearms_m79_shot")
+		nuke.rocket_shoot(user, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
 	end,
 })
 
