@@ -1,14 +1,19 @@
+-- Nuke Mod 1.5 by sfan5
+-- Licensed under GPLv2
+
 local time_load_start = os.clock()
 print("[nuke] loading...")
 
 nuke = nuke or {}
 
 --nuke.drop_items = false --this will only cause lags
-local MESE_TNT_RANGE = 12
-local IRON_TNT_RANGE = 6
-local MOSSY_TNT_RANGE = 2
-nuke.preserve_items = false
-nuke.seed = 12
+nuke.RANGE = {}
+
+dofile(minetest.get_modpath("nuke").."/settings.lua")
+
+local MESE_TNT_RANGE = nuke.RANGE["mese"]
+local IRON_TNT_RANGE = nuke.RANGE["iron"]
+local MOSSY_TNT_RANGE = nuke.RANGE["mossy"]
 nuke.bombs_list = {
 	{"iron", "Iron"},
 	{"mese", "Mese"},
@@ -37,7 +42,7 @@ minetest.after(3, function()
 	end
 end)
 
-local function r_area(manip, size, pos)
+function nuke.r_area(manip, size, pos)
 	local emerged_pos1, emerged_pos2 = manip:read_from_map(
 		{x=pos.x-size, y=pos.y-size, z=pos.z-size},
 		{x=pos.x+size, y=pos.y+size, z=pos.z+size}
@@ -45,7 +50,7 @@ local function r_area(manip, size, pos)
 	return VoxelArea:new({MinEdge=emerged_pos1, MaxEdge=emerged_pos2})
 end
 
-local function set_vm_data(manip, nodes, pos, t1, msg)
+function nuke.set_vm_data(manip, nodes, pos, t1, msg)
 	manip:set_data(nodes)
 	manip:write_to_map()
 	print(string.format("[nuke] "..msg.." at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
@@ -85,17 +90,13 @@ function do_tnt_physics(tnt_np,tntr)
 	end
 end
 
-local function get_volume(pos1, pos2)
-	return (pos2.x - pos1.x + 1) * (pos2.y - pos1.y + 1) * (pos2.z - pos1.z + 1)
-end
 
-
-local function get_nuke_random(pos)
+function nuke.get_nuke_random(pos)
 	return PseudoRandom(math.abs(pos.x+pos.y*3+pos.z*5)+nuke.seed)
 end
 
 
-local function explosion_table(range)
+function nuke.explosion_table(range)
 	local t1 = os.clock()
 	local tab = {}
 	local n = 1
@@ -198,22 +199,48 @@ local function move_items(data)
 	add_to_inv(drops)
 end
 
+if nuke.safe_mode then
+
+function nuke.explode(pos, tab, range)
+	local t1 = os.clock()
+	local player = nuke_puncher
+	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
+
+	local pr = nuke.get_nuke_random(pos)
+
+	for _,npos in ipairs(tab) do
+		local p = vector.add(pos, npos[1])
+		local node = minetest.get_node(p)
+		if node.name ~= c_air then
+			if npos[2] then
+				if pr:next(1,2) == 1 then
+					minetest.node_dig(p, node, player)
+				end
+			else
+				minetest.node_dig(p, node, player)
+			end
+		end
+	end
+	print(string.format("[nuke] exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+end
+
+else
+
 function nuke.explode(pos, tab, range)
 	local t1 = os.clock()
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 
 	local manip = minetest.get_voxel_manip()
-	local area = r_area(manip, range+1, pos)
+	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	local pr = get_nuke_random(pos)
+	local pr = nuke.get_nuke_random(pos)
 
 	if nuke.preserve_items then
 		node_tab = {}
 		num = 1
 		for _,npos in ipairs(tab) do
-			local f = npos[1]
-			local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
+			local p = vector.add(pos, npos[1])
 			local p_p = area:index(p.x, p.y, p.z)
 			local d_p_p = nodes[p_p]
 			if d_p_p ~= c_air
@@ -249,7 +276,9 @@ function nuke.explode(pos, tab, range)
 			end
 		end
 	end
-	set_vm_data(manip, nodes, pos, t1, "exploded")
+	nuke.set_vm_data(manip, nodes, pos, t1, "exploded")
+end
+
 end
 
 function nuke.explode_mossy(pos, tab, range)
@@ -257,10 +286,10 @@ function nuke.explode_mossy(pos, tab, range)
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 
 	local manip = minetest.get_voxel_manip()
-	local area = r_area(manip, range+1, pos)
+	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	local pr = get_nuke_random(pos)
+	local pr = nuke.get_nuke_random(pos)
 
 	for _,npos in ipairs(tab) do
 
@@ -286,7 +315,7 @@ function nuke.explode_mossy(pos, tab, range)
 			end
 		end
 	end
-	set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
+	nuke.set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
 end
 
 function nuke.explode_tnt(pos, tab, range)
@@ -324,10 +353,10 @@ end
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 
 	local manip = minetest.get_voxel_manip()
-	local area = r_area(manip, range+1, pos)
+	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	local pr = get_nuke_random(pos)
+	local pr = nuke.get_nuke_random(pos)
 
 	local radius = range^2 + range
 	for x=-range,range do
@@ -362,7 +391,7 @@ end
 			end
 		end
 	end
-	set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
+	nuke.set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
 end]]
 
 
@@ -460,8 +489,8 @@ function IRON_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
-	if not iron_tnt_table then
-		iron_tnt_table = explosion_table(IRON_TNT_RANGE)
+	if not nuke.explosions[IRON_TNT_RANGE] then
+		nuke.explosions[IRON_TNT_RANGE] = nuke.explosion_table(IRON_TNT_RANGE)
 	end
 end
 
@@ -496,7 +525,7 @@ function IRON_TNT:on_step(dtime)
 			self.object:remove()
 			return
 		end
-		nuke.explode(pos, iron_tnt_table, IRON_TNT_RANGE)
+		nuke.explode(pos, nuke.explosions[IRON_TNT_RANGE], IRON_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -542,7 +571,7 @@ function MESE_TNT:on_activate(staticdata)
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
 	if not mese_tnt_table then
-		mese_tnt_table = explosion_table(MESE_TNT_RANGE)
+		mese_tnt_table = nuke.explosion_table(MESE_TNT_RANGE)
 	end
 end
 
@@ -605,7 +634,7 @@ function MOSSY_TNT:on_activate(staticdata)
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
 	if not mossy_tnt_table then
-		mossy_tnt_table = explosion_table(MOSSY_TNT_RANGE)
+		mossy_tnt_table = nuke.explosion_table(MOSSY_TNT_RANGE)
 	end
 end
 
@@ -850,8 +879,6 @@ minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
 
 -- Rocket Launcher
 
---license LGPLv2+
-
 
 nuke.rocket_speed = 1
 nuke.rocket_a = 100
@@ -1003,7 +1030,7 @@ minetest.register_tool("nuke:rocket_launcher", {
 	on_use = function(itemstack, user)
 		nuke_puncher = user
 		if not nuke.explosions[nuke.rocket_expl_range] then
-			nuke.explosions[nuke.rocket_expl_range] = explosion_table(nuke.rocket_expl_range)
+			nuke.explosions[nuke.rocket_expl_range] = nuke.explosion_table(nuke.rocket_expl_range)
 		end
 		nuke.rocket_shoot(user, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
 	end,

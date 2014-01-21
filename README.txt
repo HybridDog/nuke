@@ -1,3 +1,13 @@
+Nuke:
+
+This is a modified version of sfan5's nuke mod.
+
+
+differences:
+
+https://github.com/HybridDog/nuke/compare/original...master
+
+
 sounds:
 
 license: cc (creative commons)
