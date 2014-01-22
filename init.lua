@@ -1,6 +1,8 @@
 -- Nuke Mod 1.5 by sfan5
 -- Licensed under GPLv2
 
+-- differences: https://github.com/HybridDog/nuke/compare/original...master
+
 local time_load_start = os.clock()
 print("[nuke] loading...")
 
