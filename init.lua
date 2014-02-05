@@ -320,32 +320,92 @@ function nuke.explode_mossy(pos, tab, range)
 	nuke.set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
 end
 
-function nuke.explode_tnt(pos, tab, range)
-	minetest.add_particle(pos, {x=0,y=0,z=0}, {x=0,y=0,z=0}, 0.5, 16*(range*2-1), false, "smoke_puff.png")
-	for _,i in ipairs({
-		{{x=pos.x-range, y=pos.y-range, z=pos.z-range}, {x=-3, y=0, z=-3}},
-		{{x=pos.x+range, y=pos.y-range, z=pos.z-range}, {x=3, y=0, z=-3}},
-		{{x=pos.x-range, y=pos.y-range, z=pos.z+range}, {x=-3, y=0, z=3}},
-		{{x=pos.x+range, y=pos.y-range, z=pos.z+range}, {x=3, y=0, z=3}},
-	}) do
-		minetest.add_particlespawner(
-			5*range, --amount
-			0.1, --time
-			i[1], --minpos
-			{x=pos.x, y=pos.y+range, z=pos.z}, --maxpos
-			i[2], --minvel
-			{x=0, y=0, z=0}, --maxvel
-			{x=0,y=5,z=0}, --minacc
-			{x=0,y=10,z=0}, --maxacc
-			0.1, --minexptime
-			1, --maxexptime
-			8, --minsize
-			15, --maxsize
-			false, --collisiondetection
-			"smoke_puff.png" --texture
-		)
+function nuke.explode_tnt(pos, tab, range, delay)
+	local t1 = os.clock()
+
+	local manip = minetest.get_voxel_manip()
+	local area = nuke.r_area(manip, range+1, pos)
+	local nodes = manip:get_data()
+
+	local pr = nuke.get_nuke_random(pos)
+
+	if nuke.preserve_items then
+		node_tab = {}
+		num = 1
+		for _,npos in ipairs(tab) do
+			local p = vector.add(pos, npos[1])
+			local p_p = area:index(p.x, p.y, p.z)
+			local d_p_p = nodes[p_p]
+			if d_p_p ~= c_air
+			and d_p_p ~= c_chest then
+				local nd = node_tab[d_p_p]
+				if npos[2] then
+					if pr:next(1,2) == 1 then
+						node_tab = add_c_to_tab(node_tab, d_p_p, nd)
+						nodes[p_p] = c_air
+					end
+				else
+					node_tab = add_c_to_tab(node_tab, d_p_p, nd)
+					nodes[p_p] = c_air
+				end
+			end
+		end
+		move_items(node_tab)
+	else
+		for _,npos in ipairs(tab) do
+			local f = npos[1]
+			local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
+			local p_p = area:index(p.x, p.y, p.z)
+			local d_p_p = nodes[p_p]
+			if d_p_p ~= c_air
+			and d_p_p ~= c_chest then
+				if npos[2] then
+					if pr:next(1,2) == 1 then
+						nodes[p_p] = c_air
+					end
+				else
+					nodes[p_p] = c_air
+				end
+			end
+		end
 	end
-	nuke.explode(pos, tab, range)
+	nuke.set_vm_data(manip, nodes, pos, t1, "exploded")
+	manip:set_data(nodes)
+	manip:write_to_map()
+	print(string.format("[nuke] pre exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+
+	minetest.after(delay, function(param)
+		local t1 = os.clock()
+		minetest.sound_play("nuke_explode", {pos = param.pos, gain = 1, max_hear_distance = param.range*200})
+		print(string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
+
+		minetest.add_particle(param.pos, {x=0,y=0,z=0}, {x=0,y=0,z=0}, 0.5, 16*(param.range*2-1), false, "smoke_puff.png")
+		for _,i in ipairs({
+			{{x=param.pos.x-param.range, y=param.pos.y-param.range, z=param.pos.z-param.range}, {x=-3, y=0, z=-3}},
+			{{x=param.pos.x+param.range, y=param.pos.y-param.range, z=param.pos.z-param.range}, {x=3, y=0, z=-3}},
+			{{x=param.pos.x-param.range, y=param.pos.y-param.range, z=param.pos.z+param.range}, {x=-3, y=0, z=3}},
+			{{x=param.pos.x+param.range, y=param.pos.y-param.range, z=param.pos.z+param.range}, {x=3, y=0, z=3}},
+		}) do
+			minetest.add_particlespawner(
+				5*param.range, --amount
+				0.1, --time
+				i[1], --minpos
+				{x=param.pos.x, y=param.pos.y+param.range, z=param.pos.z}, --maxpos
+				i[2], --minvel
+				{x=0, y=0, z=0}, --maxvel
+				{x=0,y=5,z=0}, --minacc
+				{x=0,y=10,z=0}, --maxacc
+				0.1, --minexptime
+				1, --maxexptime
+				8, --minsize
+				15, --maxsize
+				false, --collisiondetection
+				"smoke_puff.png" --texture
+			)
+		end
+		param.manip:update_map()
+		print(string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
+	end, {pos=pos, range=range, manip=manip})
 end
 
 
@@ -904,15 +964,21 @@ end
 local function rocket_expl(pos, player, pos2, sound)
 	local nodenam = minetest.get_node(pos).name
 	if nodenam == "air"
+	or nodenam == "ignore"
 	or nodenam == "default:water_source"
 	or nodenam == "default:water_flowing" then
 		return false
 	end
+	--[[local maxp = {x=nuke.rocket_expl_range, y=nuke.rocket_expl_range, z=nuke.rocket_expl_range}
+	local minp = vector.multiply(maxp, -1)
+	if next(minetest.find_nodes_in_area(vector.add(pos, minp), vector.add(pos, maxp), {"ignore"})) then
+		return false
+	end]]
 	local delay = nuke.timeacc(math.max(vector.distance(pos,pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
+	nuke.explode_tnt(pos, nuke.explosions[nuke.rocket_expl_range], nuke.rocket_expl_range, delay)
 	minetest.after(delay, function(pos)
 		minetest.sound_stop(sound)
 		do_tnt_physics(pos, nuke.rocket_expl_range)
-		nuke.explode_tnt(pos, nuke.explosions[nuke.rocket_expl_range], nuke.rocket_expl_range)
 	end, pos)
 	return true
 end
