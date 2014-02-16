@@ -369,7 +369,6 @@ function nuke.explode_tnt(pos, tab, range, delay)
 			end
 		end
 	end
-	nuke.set_vm_data(manip, nodes, pos, t1, "exploded")
 	manip:set_data(nodes)
 	manip:write_to_map()
 	print(string.format("[nuke] pre exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
