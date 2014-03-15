@@ -21,7 +21,6 @@ nuke.bombs_list = {
 	{"mese", "Mese"},
 	{"mossy", "Mossy"}
 }
-nuke.explosions = {}
 
 minetest.after(3, function()
 	if minetest.get_modpath("extrablocks") then
@@ -95,33 +94,6 @@ end
 
 function nuke.get_nuke_random(pos)
 	return PseudoRandom(math.abs(pos.x+pos.y*3+pos.z*5)+nuke.seed)
-end
-
-
-function nuke.explosion_table(range)
-	local t1 = os.clock()
-	local tab = {}
-	local n = 1
-
-	local radius = range^2 + range
-	for x=-range,range do
-		for y=-range,range do
-			for z=-range,range do
-				local r = x^2+y^2+z^2 
-				if r <= radius then
-					local np={x=x, y=y, z=z}
-					if math.floor(math.sqrt(r) +0.5) > range-1 then
-						tab[n] = {np, true}
-					else
-						tab[n] = {np}
-					end
-					n = n+1
-				end
-			end
-		end
-	end
-	print(string.format("[nuke] table created after: %.2fs", os.clock() - t1))
-	return tab
 end
 
 local c_air = minetest.get_content_id("air")
@@ -550,9 +522,6 @@ function IRON_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
-	if not nuke.explosions[IRON_TNT_RANGE] then
-		nuke.explosions[IRON_TNT_RANGE] = nuke.explosion_table(IRON_TNT_RANGE)
-	end
 end
 
 function IRON_TNT:on_step(dtime)
@@ -586,7 +555,7 @@ function IRON_TNT:on_step(dtime)
 			self.object:remove()
 			return
 		end
-		nuke.explode(pos, nuke.explosions[IRON_TNT_RANGE], IRON_TNT_RANGE)
+		nuke.explode(pos, vector.explosion_table(IRON_TNT_RANGE), IRON_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -632,7 +601,7 @@ function MESE_TNT:on_activate(staticdata)
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
 	if not mese_tnt_table then
-		mese_tnt_table = nuke.explosion_table(MESE_TNT_RANGE)
+		mese_tnt_table = vector.explosion_table(MESE_TNT_RANGE)
 	end
 end
 
@@ -695,7 +664,7 @@ function MOSSY_TNT:on_activate(staticdata)
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
 	if not mossy_tnt_table then
-		mossy_tnt_table = nuke.explosion_table(MOSSY_TNT_RANGE)
+		mossy_tnt_table = vector.explosion_table(MOSSY_TNT_RANGE)
 	end
 end
 
@@ -973,8 +942,8 @@ local function rocket_expl(pos, player, pos2, sound)
 	if next(minetest.find_nodes_in_area(vector.add(pos, minp), vector.add(pos, maxp), {"ignore"})) then
 		return false
 	end]]
-	local delay = nuke.timeacc(math.max(vector.distance(pos,pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
-	nuke.explode_tnt(pos, nuke.explosions[nuke.rocket_expl_range], nuke.rocket_expl_range, delay)
+	local delay = vector.straightdelay(math.max(vector.distance(pos,pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
+	nuke.explode_tnt(pos, vector.explosion_table(nuke.rocket_expl_range), nuke.rocket_expl_range, delay)
 	minetest.after(delay, function(pos)
 		minetest.sound_stop(sound)
 		do_tnt_physics(pos, nuke.rocket_expl_range)
@@ -1068,10 +1037,6 @@ function nuke.rocket_nodes(pos, dir, player, range, sound)
 	end
 end
 
-function nuke.timeacc(s, v, a)
-	return (math.sqrt(v*v+2*a*s)-v)/a
-end
-
 function nuke.rocket_shoot(player, range, particle_texture, sound)
 	local t1 = os.clock()
 
@@ -1083,7 +1048,7 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	minetest.add_particle(startpos,
 		{x=dir.x*nuke.rocket_speed, y=dir.y*nuke.rocket_speed, z=dir.z*nuke.rocket_speed},
 		{x=dir.x*nuke.rocket_a, y=dir.y*nuke.rocket_a, z=dir.z*nuke.rocket_a},
-		nuke.timeacc(range, nuke.rocket_speed, nuke.rocket_a),
+		vector.straightdelay(range, nuke.rocket_speed, nuke.rocket_a),
 		1, false, particle_texture
 	)
 
@@ -1093,12 +1058,10 @@ end
 minetest.register_tool("nuke:rocket_launcher", {
 	description = "Rocket Launcher",
 	inventory_image = "nuke_rocket_launcher.png",
+	range = 0,
 	stack_max = 1,
 	on_use = function(itemstack, user)
 		nuke_puncher = user
-		if not nuke.explosions[nuke.rocket_expl_range] then
-			nuke.explosions[nuke.rocket_expl_range] = nuke.explosion_table(nuke.rocket_expl_range)
-		end
 		nuke.rocket_shoot(user, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
 	end,
 })
