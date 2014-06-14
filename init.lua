@@ -914,127 +914,25 @@ nuke.rocket_speed = 1
 nuke.rocket_a = 100
 nuke.rocket_range = 100
 nuke.rocket_expl_range = 3
-local r_corr = 0.25 --sth like antialiasing
 
-local f_1 = 0.5-r_corr
-local f_2 = 0.5+r_corr
-
--- Taken from the Flowers mod by erlehmann.
-local function table_contains(t, v)
-	for _,i in ipairs(t) do
-		if i == v then
-			return true
-		end
-	end
-	return false
-end
-
-local function rocket_expl(pos, player, pos2, sound)
+local function rocket_expl(pos, player, pos2, sound, delay)
 	local nodenam = minetest.get_node(pos).name
 	if nodenam == "air"
 	or nodenam == "ignore"
 	or nodenam == "default:water_source"
 	or nodenam == "default:water_flowing" then
-		return false
+		return
 	end
 	--[[local maxp = {x=nuke.rocket_expl_range, y=nuke.rocket_expl_range, z=nuke.rocket_expl_range}
 	local minp = vector.multiply(maxp, -1)
 	if next(minetest.find_nodes_in_area(vector.add(pos, minp), vector.add(pos, maxp), {"ignore"})) then
 		return false
 	end]]
-	local delay = vector.straightdelay(math.max(vector.distance(pos,pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
 	nuke.explode_tnt(pos, vector.explosion_table(nuke.rocket_expl_range), nuke.rocket_expl_range, delay)
 	minetest.after(delay, function(pos)
 		minetest.sound_stop(sound)
 		do_tnt_physics(pos, nuke.rocket_expl_range)
 	end, pos)
-	return true
-end
-
-local function get_used_dir(dir)
-	local abs_dir = {x=math.abs(dir.x), y=math.abs(dir.y), z=math.abs(dir.z)}
-	local dir_max = math.max(abs_dir.x, abs_dir.y, abs_dir.z)
-	if dir_max == abs_dir.x then
-		local tab = {"x", {x=1, y=dir.y/dir.x, z=dir.z/dir.x}}
-		if dir.x >= 0 then
-			tab[3] = "+"
-		end
-		return tab
-	end
-	if dir_max == abs_dir.y then
-		local tab = {"y", {x=dir.x/dir.y, y=1, z=dir.z/dir.y}}
-		if dir.y >= 0 then
-			tab[3] = "+"
-		end
-		return tab
-	end
-	local tab = {"z", {x=dir.x/dir.z, y=dir.y/dir.z, z=1}}
-	if dir.z >= 0 then
-		tab[3] = "+"
-	end
-	return tab
-end
-
-local function node_tab(z, d)
-	local n1 = math.floor(z*d+f_1)
-	local n2 = math.floor(z*d+f_2)
-	if n1 == n2 then
-		return {n1}
-	end
-	return {n1, n2}
-end
-
-function nuke.rocket_nodes(pos, dir, player, range, sound)
-	local t_dir = get_used_dir(dir)
-	local dir_typ = t_dir[1]
-	if t_dir[3] == "+" then
-		f_tab = {0, range, 1}
-	else
-		f_tab = {0, -range, -1}
-	end
-	local d_ch = t_dir[2]
-	if dir_typ == "x" then
-		for d = f_tab[1],f_tab[2],f_tab[3] do
-			local x = d
-			local ytab = node_tab(d_ch.y, d)
-			local ztab = node_tab(d_ch.z, d)
-			for _,y in ipairs(ytab) do
-				for _,z in ipairs(ztab) do
-					if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos, sound) then
-						return
-					end
-				end
-			end
-		end
-		return
-	end
-	if dir_typ == "y" then
-		for d = f_tab[1],f_tab[2],f_tab[3] do
-			local xtab = node_tab(d_ch.x, d)
-			local y = d
-			local ztab = node_tab(d_ch.z, d)
-			for _,x in ipairs(xtab) do
-				for _,z in ipairs(ztab) do
-					if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos, sound) then
-						return
-					end
-				end
-			end
-		end
-		return
-	end
-	for d = f_tab[1],f_tab[2],f_tab[3] do
-		local xtab = node_tab(d_ch.x, d)
-		local ytab = node_tab(d_ch.y, d)
-		local z = d
-		for _,x in ipairs(xtab) do
-			for _,y in ipairs(ytab) do
-				if rocket_expl({x=pos.x+x, y=pos.y+y, z=pos.z+z}, player, pos, sound) then
-					return
-				end
-			end
-		end
-	end
 end
 
 function nuke.rocket_shoot(player, range, particle_texture, sound)
@@ -1044,13 +942,19 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	local dir=player:get_look_dir()
 
 	local startpos = {x=playerpos.x, y=playerpos.y+1.6, z=playerpos.z}
-	nuke.rocket_nodes(vector.round(startpos), dir, player, range, minetest.sound_play(sound, {pos = playerpos, gain = 1.0, max_hear_distance = range}))
+	local bl, pos2 = minetest.line_of_sight(startpos, vector.add(vector.multiply(dir, range), startpos), 1)
+	local snd = minetest.sound_play(sound, {pos = playerpos, gain = 1.0, max_hear_distance = range})
+	local delay = vector.straightdelay(math.max(vector.distance(startpos, pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
+	if not bl then
+		rocket_expl(vector.round(pos2), player, startpos, snd, delay)
+	end
 	minetest.add_particle(startpos,
 		{x=dir.x*nuke.rocket_speed, y=dir.y*nuke.rocket_speed, z=dir.z*nuke.rocket_speed},
 		{x=dir.x*nuke.rocket_a, y=dir.y*nuke.rocket_a, z=dir.z*nuke.rocket_a},
-		vector.straightdelay(range, nuke.rocket_speed, nuke.rocket_a),
+		delay,
 		1, false, particle_texture
 	)
+	--nuke.rocket_nodes(vector.round(startpos), dir, player, range, )
 
 	print("[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
 end
