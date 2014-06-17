@@ -914,6 +914,7 @@ nuke.rocket_speed = 1
 nuke.rocket_a = 100
 nuke.rocket_range = 100
 nuke.rocket_expl_range = 3
+fullautomatic_launcher = false
 
 local function rocket_expl(pos, player, pos2, sound, delay)
 	local nodenam = minetest.get_node(pos).name
@@ -943,6 +944,9 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 
 	local startpos = {x=playerpos.x, y=playerpos.y+1.6, z=playerpos.z}
 	local bl, pos2 = minetest.line_of_sight(startpos, vector.add(vector.multiply(dir, range), startpos), 1)
+	if not pos2 then
+		return
+	end
 	local snd = minetest.sound_play(sound, {pos = playerpos, gain = 1.0, max_hear_distance = range})
 	local delay = vector.straightdelay(math.max(vector.distance(startpos, pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
 	if not bl then
@@ -964,11 +968,23 @@ minetest.register_tool("nuke:rocket_launcher", {
 	inventory_image = "nuke_rocket_launcher.png",
 	range = 0,
 	stack_max = 1,
-	on_use = function(itemstack, user)
+	on_use = function(_, user)
 		nuke_puncher = user
 		nuke.rocket_shoot(user, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
 	end,
 })
+
+if fullautomatic_launcher then
+	minetest.register_globalstep(function()
+		for _,player in pairs(minetest.get_connected_players()) do
+			if player:get_wielded_item():to_string() == "nuke:rocket_launcher"
+			and player:get_player_control().LMB then
+				nuke_puncher = player
+				nuke.rocket_shoot(player, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
+			end
+		end
+	end)
+end
 
 --dofile(minetest.get_modpath("nuke").."/b.lua")
 
