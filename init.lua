@@ -942,7 +942,7 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	local playerpos=player:getpos()
 	local dir=player:get_look_dir()
 
-	local startpos = {x=playerpos.x, y=playerpos.y+1.6, z=playerpos.z}
+	local startpos = {x=playerpos.x, y=playerpos.y+1.625, z=playerpos.z}
 	local bl, pos2 = minetest.line_of_sight(startpos, vector.add(vector.multiply(dir, range), startpos), 1)
 	if not pos2 then
 		return
@@ -953,10 +953,10 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 		rocket_expl(vector.round(pos2), player, startpos, snd, delay)
 	end
 	minetest.add_particle(startpos,
-		{x=dir.x*nuke.rocket_speed, y=dir.y*nuke.rocket_speed, z=dir.z*nuke.rocket_speed},
-		{x=dir.x*nuke.rocket_a, y=dir.y*nuke.rocket_a, z=dir.z*nuke.rocket_a},
+		vector.multiply(dir, nuke.rocket_speed),
+		vector.multiply(dir, nuke.rocket_a),
 		delay,
-		1, false, particle_texture
+		1, false, particle_texture.."^[transform"..math.random(0,7)
 	)
 	--nuke.rocket_nodes(vector.round(startpos), dir, player, range, )
 
