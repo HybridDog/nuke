@@ -900,6 +900,19 @@ minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
 
 
 
+if moss then
+	moss.register_moss({
+		node = "nuke:iron_tnt",
+		result = "nuke:mossy_tnt"
+	})
+
+	moss.register_moss({
+		node = "nuke:mese_tnt",
+		result = "nuke:mossy_tnt"
+	})
+end
+
+
 
 
 
@@ -947,7 +960,7 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	if not pos2 then
 		return
 	end
-	local snd = minetest.sound_play(sound, {pos = playerpos, gain = 1.0, max_hear_distance = range})
+	local snd = minetest.sound_play(sound, {pos = playerpos, max_hear_distance = range})
 	local delay = vector.straightdelay(math.max(vector.distance(startpos, pos2)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
 	if not bl then
 		rocket_expl(vector.round(pos2), player, startpos, snd, delay)
