@@ -85,7 +85,7 @@ function do_tnt_physics(pos, r)
 				obj:setvelocity({x=(p.x - pos.x) + (r / 4) + v.x, y=(p.y - pos.y) + (r / 2) + v.y, z=(p.z - pos.z) + (r / 4) + v.z})
 			else
 				if obj:get_player_name() ~= nil then
-					local dmg = math.floor(0.5+r-vector.distance(pos, p))
+					local dmg = math.floor(20.5-(vector.distance(pos, p)*20/r))
 					obj:set_hp(obj:get_hp() - dmg)
 				end
 			end
