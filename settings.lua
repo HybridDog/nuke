@@ -10,3 +10,6 @@ nuke.seed = 12
 nuke.RANGE["mese"] = 12
 nuke.RANGE["iron"] = 6
 nuke.RANGE["mossy"] = 2
+
+--allows crafting in multiplayer mode
+nuke.always_allow_crafting = false

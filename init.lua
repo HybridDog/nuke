@@ -85,9 +85,9 @@ function do_tnt_physics(tnt_np,tntr)
 end
 
 
-function nuke.get_nuke_random(pos)
+--[[function nuke.get_nuke_random(pos)
 	return PseudoRandom(math.abs(pos.x+pos.y*3+pos.z*5)+nuke.seed)
-end
+end]]
 
 local c_air = minetest.get_content_id("air")
 local c_chest = minetest.get_content_id("default:chest")
@@ -173,14 +173,12 @@ function nuke.explode(pos, tab, range)
 	local player = nuke_puncher
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 
-	local pr = nuke.get_nuke_random(pos)
-
 	for _,npos in ipairs(tab) do
 		local p = vector.add(pos, npos[1])
 		local node = minetest.get_node(p)
 		if node.name ~= c_air then
 			if npos[2] then
-				if pr:next(1,2) == 1 then
+				if math.random(2) == 1 then
 					minetest.node_dig(p, node, player)
 				end
 			else
@@ -201,8 +199,6 @@ function nuke.explode(pos, tab, range)
 	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	local pr = nuke.get_nuke_random(pos)
-
 	if nuke.preserve_items then
 		node_tab = {}
 		num = 1
@@ -214,7 +210,7 @@ function nuke.explode(pos, tab, range)
 			and d_p_p ~= c_chest then
 				local nd = node_tab[d_p_p]
 				if npos[2] then
-					if pr:next(1,2) == 1 then
+					if math.random(2) == 1 then
 						node_tab = add_c_to_tab(node_tab, d_p_p, nd)
 						nodes[p_p] = c_air
 					end
@@ -234,7 +230,7 @@ function nuke.explode(pos, tab, range)
 			if d_p_p ~= c_air
 			and d_p_p ~= c_chest then
 				if npos[2] then
-					if pr:next(1,2) == 1 then
+					if math.random(2) == 1 then
 						nodes[p_p] = c_air
 					end
 				else
@@ -256,8 +252,6 @@ function nuke.explode_mossy(pos, tab, range)
 	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	local pr = nuke.get_nuke_random(pos)
-
 	for _,npos in ipairs(tab) do
 
 		local f = npos[1]
@@ -267,7 +261,7 @@ function nuke.explode_mossy(pos, tab, range)
 		if d_p_p ~= c_air
 		and d_p_p ~= c_chest then
 			if npos[2] then
-				if pr:next(1,5) >= 4 then
+				if math.random(5) >= 4 then
 					nodes[p_p] = c_air
 				else
 					for _,node in ipairs(nuke.mossy_nds) do
@@ -292,8 +286,6 @@ function nuke.explode_tnt(pos, tab, range, delay)
 	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	local pr = nuke.get_nuke_random(pos)
-
 	if nuke.preserve_items then
 		node_tab = {}
 		num = 1
@@ -305,7 +297,7 @@ function nuke.explode_tnt(pos, tab, range, delay)
 			and d_p_p ~= c_chest then
 				local nd = node_tab[d_p_p]
 				if npos[2] then
-					if pr:next(1,2) == 1 then
+					if math.random(2) == 1 then
 						node_tab = add_c_to_tab(node_tab, d_p_p, nd)
 						nodes[p_p] = c_air
 					end
@@ -325,7 +317,7 @@ function nuke.explode_tnt(pos, tab, range, delay)
 			if d_p_p ~= c_air
 			and d_p_p ~= c_chest then
 				if npos[2] then
-					if pr:next(1,2) == 1 then
+					if math.random(2) == 1 then
 						nodes[p_p] = c_air
 					end
 				else
@@ -426,13 +418,8 @@ minetest.register_chatcommand('nuke_switch_map_update',{
 	params = "",
 	privs = {},
 	func = function()
-		if not nuke.no_map_update then
-			nuke.no_map_update = true
-			msg = "nuke map_update disabled"
-		else
-			nuke.no_map_update = false
-			msg = "nuke map_update enabled"
-		end
+		nuke.no_map_update = not nuke.no_map_update
+		msg = "nuke map_update: ".. tostring(not nuke.no_map_update)
 		print("[nuke] "..name..": "..msg)
 		minetest.chat_send_player(name, msg)
 	end
@@ -441,32 +428,35 @@ minetest.register_chatcommand('nuke_switch_map_update',{
 
 --Crafting:
 
-local w = 'default:wood'
-local c = 'default:coal_lump'
+if nuke.always_allow_crafting
+or minetest.is_singleplayer() then
+	local w = 'default:wood'
+	local c = 'default:coal_lump'
 
-for _,i in ipairs({
-	{"mese", "mese_crystal"},
-	{"iron", "steel_ingot"}
-}) do
-	local s = "default"..i[2]
+	for _,i in ipairs({
+		{"mese", "mese_crystal"},
+		{"iron", "steel_ingot"}
+	}) do
+		local s = "default"..i[2]
 
-	minetest.register_craft({
-		output = 'nuke:'..i[1]..'_tnt 4',
-		recipe = {
-			{'', w, ''},
-			{ s, c, s },
-			{'', w, ''}
-		}
-	})
+		minetest.register_craft({
+			output = 'nuke:'..i[1]..'_tnt 4',
+			recipe = {
+				{'', w, ''},
+				{ s, c, s },
+				{'', w, ''}
+			}
+		})
 
-	minetest.register_craft({
-		output = 'nuke:hardcore_'..i[1]..'_tnt',
-		recipe = {
-			{'', c, ''},
-			{c, 'nuke:'..i[1]..'_tnt', c},
-			{'', c, ''}
-		}
-	})
+		minetest.register_craft({
+			output = 'nuke:hardcore_'..i[1]..'_tnt',
+			recipe = {
+				{'', c, ''},
+				{c, 'nuke:'..i[1]..'_tnt', c},
+				{'', c, ''}
+			}
+		})
+	end
 end
 
 function nuke.lit_tnt(pos, name, puncher)
