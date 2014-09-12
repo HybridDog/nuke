@@ -389,7 +389,7 @@ end
 	for x=-range,range do
 		for y=-range,range do
 			for z=-range,range do
-				local r = x*x+y*y+z*z 
+				local r = x*x+y*y+z*z
 				if r <= radius then
 					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
 					local p_np = area:index(np.x, np.y, np.z)
