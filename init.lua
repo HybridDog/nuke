@@ -23,16 +23,9 @@ nuke.bombs_list = {
 }
 
 minetest.after(3, function()
-	if minetest.get_modpath("extrablocks") then
-		nuke.mossy_nodes = {
-			{"default:cobble", "default:mossycobble"},
-			{"default:stonebrick",	"extrablocks:mossystonebrick"},
-			{"extrablocks:wall",	"extrablocks:mossywall"}
-		}
-	else
-		nuke.mossy_nodes = {
-			{"default:cobble", "default:mossycobble"}
-		}
+	nuke.mossy_nodes = nuke.mossy_nodes or {}
+	for _,i in pairs(moss.registered_moss) do
+		table.insert(nuke.mossy_nodes, {i.node, i.result})
 	end
 
 	local num = 1
