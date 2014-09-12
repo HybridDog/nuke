@@ -55,29 +55,38 @@ function nuke.set_vm_data(manip, nodes, pos, t1, msg)
 	end
 end
 
+local function table_icontains(t, v)
+	for i = 1,#t do
+		if v == t[i] then
+			return true
+		end
+	end
+	return false
+end
+
 function spawn_tnt(pos, entname)
 	minetest.sound_play("nuke_ignite", {pos = pos,gain = 1.0,max_hear_distance = 8,})
 	return minetest.add_entity(pos, entname)
 end
 
-function do_tnt_physics(tnt_np,tntr)
-	local objs = minetest.get_objects_inside_radius(tnt_np, tntr)
+function do_tnt_physics(pos, r)
+	local objs = minetest.get_objects_inside_radius(pos, r)
 	for k, obj in pairs(objs) do
 		local oname = obj:get_entity_name()
 		local v = obj:getvelocity()
 		local p = obj:getpos()
-		if oname == "experimental:tnt"
-		or oname == "nuke:iron_tnt"
-		or oname == "nuke:mese_tnt"
-		or oname == "nuke:hardcore_iron_tnt"
-		or oname == "nuke:hardcore_mese_tnt" then
-			obj:setvelocity({x=(p.x - tnt_np.x) + (tntr / 2) + v.x, y=(p.y - tnt_np.y) + tntr + v.y, z=(p.z - tnt_np.z) + (tntr / 2) + v.z})
+		if table_icontains(
+			{"experimental:tnt", "nuke:iron_tnt", "nuke:mese_tnt", "nuke:hardcore_iron_tnt", "nuke:hardcore_mese_tnt"},
+			oname
+		) then
+			obj:setvelocity({x=(p.x - pos.x) + (r / 2) + v.x, y=(p.y - pos.y) + r + v.y, z=(p.z - pos.z) + (r / 2) + v.z})
 		else
 			if v ~= nil then
-				obj:setvelocity({x=(p.x - tnt_np.x) + (tntr / 4) + v.x, y=(p.y - tnt_np.y) + (tntr / 2) + v.y, z=(p.z - tnt_np.z) + (tntr / 4) + v.z})
+				obj:setvelocity({x=(p.x - pos.x) + (r / 4) + v.x, y=(p.y - pos.y) + (r / 2) + v.y, z=(p.z - pos.z) + (r / 4) + v.z})
 			else
 				if obj:get_player_name() ~= nil then
-					obj:set_hp(obj:get_hp() - 1)
+					local dmg = math.floor(0.5+r-vector.distance(pos, p))
+					obj:set_hp(obj:get_hp() - dmg)
 				end
 			end
 		end
@@ -883,17 +892,15 @@ minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
 
 
 
-if moss then
-	moss.register_moss({
-		node = "nuke:iron_tnt",
-		result = "nuke:mossy_tnt"
-	})
+moss.register_moss({
+	node = "nuke:iron_tnt",
+	result = "nuke:mossy_tnt"
+})
 
-	moss.register_moss({
-		node = "nuke:mese_tnt",
-		result = "nuke:mossy_tnt"
-	})
-end
+moss.register_moss({
+	node = "nuke:mese_tnt",
+	result = "nuke:mossy_tnt"
+})
 
 
 
