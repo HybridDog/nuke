@@ -157,6 +157,8 @@ local function get_drops(data)
 	return tab
 end
 
+local nuke_puncher
+
 local function add_to_inv(nodes)
 	local inv = nuke_puncher:get_inventory()
 	if not inv then
