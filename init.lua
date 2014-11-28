@@ -6,7 +6,9 @@
 local time_load_start = os.clock()
 print("[nuke] loading...")
 
-nuke = nuke or {}
+if not rawget(_G, "nuke") then
+	nuke = {}
+end
 
 --nuke.drop_items = false --this will only cause lags
 nuke.RANGE = {}
