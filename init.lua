@@ -4,7 +4,7 @@
 -- differences: https://github.com/HybridDog/nuke/compare/original...master
 
 local time_load_start = os.clock()
-print("[nuke] loading...")
+minetest.log("verbose", "[nuke] loading...")
 
 if not rawget(_G, "nuke") then
 	nuke = {}
@@ -49,11 +49,11 @@ end
 function nuke.set_vm_data(manip, nodes, pos, t1, msg)
 	manip:set_data(nodes)
 	manip:write_to_map()
-	print(string.format("[nuke] "..msg.." at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+	minetest.log("info", string.format("[nuke] "..msg.." at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
 	if not nuke.no_map_update then
 		local t1 = os.clock()
 		manip:update_map()
-		print(string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
+		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
 	end
 end
 
@@ -199,7 +199,7 @@ function nuke.explode(pos, tab, range)
 			end
 		end
 	end
-	print(string.format("[nuke] exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+	minetest.log("info", string.format("[nuke] exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
 end
 
 else
@@ -341,12 +341,12 @@ function nuke.explode_tnt(pos, tab, range, delay)
 	end
 	manip:set_data(nodes)
 	manip:write_to_map()
-	print(string.format("[nuke] pre exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+	minetest.log("info", string.format("[nuke] pre exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
 
 	minetest.after(delay, function(param)
 		local t1 = os.clock()
 		minetest.sound_play("nuke_explode", {pos = param.pos, gain = 1, max_hear_distance = param.range*200})
-		print(string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
+		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
 
 		minetest.add_particle(param.pos, {x=0,y=0,z=0}, {x=0,y=0,z=0}, 0.5, 16*(param.range*2-1), false, "smoke_puff.png")
 		for _,i in ipairs({
@@ -373,7 +373,7 @@ function nuke.explode_tnt(pos, tab, range, delay)
 			)
 		end
 		param.manip:update_map()
-		print(string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
+		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
 	end, {pos=pos, range=range, manip=manip})
 end
 
@@ -433,7 +433,7 @@ minetest.register_chatcommand('nuke_switch_map_update',{
 	func = function()
 		nuke.no_map_update = not nuke.no_map_update
 		msg = "nuke map_update: ".. tostring(not nuke.no_map_update)
-		print("[nuke] "..name..": "..msg)
+		minetest.log("action", "[nuke] "..name..": "..msg)
 		minetest.chat_send_player(name, msg)
 	end
 })
@@ -592,6 +592,7 @@ local MESE_TNT = nuke.tnt_ent({
 	"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"
 })
 
+local mese_tnt_table
 function MESE_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
@@ -655,6 +656,7 @@ local MOSSY_TNT = nuke.tnt_ent({
 	"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"
 })
 
+local mossy_tnt_table
 function MOSSY_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
@@ -967,7 +969,7 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	)
 	--nuke.rocket_nodes(vector.round(startpos), dir, player, range, )
 
-	print("[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
+	minetest.log("info", "[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
 end
 
 minetest.register_tool("nuke:rocket_launcher", {
@@ -995,4 +997,4 @@ end
 
 --dofile(minetest.get_modpath("nuke").."/b.lua")
 
-print(string.format("[nuke] loaded after ca. %.2fs", os.clock() - time_load_start))
+minetest.log("info", string.format("[nuke] loaded after ca. %.2fs", os.clock() - time_load_start))
