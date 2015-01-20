@@ -33,7 +33,5 @@ TODO:
 — use a table for the invert explosion
 — add more nuke rls
 — move the rocket launcher(s) into a seperate file
-— use "nuke." instead of "local "
 — add a special one for the invert explosion
-— maybe add a different rocket_launcher_back texture
 — update branch "original"

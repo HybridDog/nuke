@@ -149,3 +149,252 @@ function activate_if_tnt(nname, np, tnt_np, tntr)
 		e:setvelocity({x=(np.x - tnt_np.x)*3+(tntr / 4), y=(np.y - tnt_np.y)*3+(tntr / 3), z=(np.z - tnt_np.z)*3+(tntr / 4)})
 	end
 end
+
+
+
+
+
+local chest_descs = {
+	{5, "You nuked. I HAVE NOT!"},
+	{10, "Hehe, I'm the result of your explosion hee!"},
+	{20, "Look into me, I'm fat!"},
+	{30, "Please don't rob me. Else you are as evil as the other persons who took my inventoried stuff."},
+	{300, "I'll follow you until I ate you. Like I did with the other objects here..."},
+}
+
+function nuke.describe_chest()
+	for _,i in pairs(chest_descs) do
+		if math.random(i[1]) == 1 then
+			return i[2]
+		end
+	end
+	return "Feel free to take the nuked items out of me!"
+end
+
+function nuke.set_chest(pos) --add a chest
+	minetest.add_node(pos, {name="default:chest"})
+	local meta = minetest.get_meta(pos)
+	meta:set_string("formspec", default.chest_formspec)
+	meta:set_string("infotext", describe_chest())
+	local inve = meta:get_inventory()
+	inve:set_size("main", 8*4)
+	nuke_chestpos = pos
+end
+
+
+-- Hardcore
+
+		minetest.register_craft({
+			output = 'nuke:hardcore_'..i[1]..'_tnt',
+			recipe = {
+				{'', c, ''},
+				{c, 'nuke:'..i[1]..'_tnt', c},
+				{'', c, ''}
+			}
+		})
+
+
+, "nuke:mese_tnt", "nuke:hardcore_iron_tnt", "nuke:hardcore_mese_tnt"
+
+-- Hardcore Iron TNT
+
+minetest.register_node("nuke:hardcore_iron_tnt", {
+	tiles = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
+			"nuke_hardcore_iron_tnt_side.png"},
+	inventory_image = minetest.inventorycube("nuke_iron_tnt_top.png",
+			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png"),
+	dug_item = '', -- Get nothing
+	material = {
+		diggability = "not",
+	},
+	description = "Hardcore Iron Bomb",
+})
+
+minetest.register_on_punchnode(function(p, node)
+	if node.name == "nuke:hardcore_iron_tnt" then
+		minetest.remove_node(p)
+		spawn_tnt(p, "nuke:hardcore_iron_tnt")
+		nodeupdate(p)
+	end
+end)
+
+local HARDCORE_IRON_TNT_RANGE = 6
+local HARDCORE_IRON_TNT = {
+	-- Static definition
+	physical = true, -- Collides with things
+	-- weight = 5,
+	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
+	visual = "cube",
+	textures = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
+			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png",
+			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png"},
+	-- Initial value for our timer
+	timer = 0,
+	-- Number of punches required to defuse
+	health = 1,
+	blinktimer = 0,
+	blinkstatus = true,
+}
+
+function HARDCORE_IRON_TNT:on_activate(staticdata)
+	self.object:setvelocity({x=0, y=4, z=0})
+	self.object:setacceleration({x=0, y=-10, z=0})
+	self.object:settexturemod("^[brighten")
+end
+
+function HARDCORE_IRON_TNT:on_step(dtime)
+	self.timer = self.timer + dtime
+	self.blinktimer = self.blinktimer + dtime
+	if self.timer>5 then
+		self.blinktimer = self.blinktimer + dtime
+		if self.timer>8 then
+			self.blinktimer = self.blinktimer + dtime
+			self.blinktimer = self.blinktimer + dtime
+		end
+	end
+	if self.blinktimer > 0.5 then
+		self.blinktimer = self.blinktimer - 0.5
+		if self.blinkstatus then
+			self.object:settexturemod("")
+		else
+			self.object:settexturemod("^[brighten")
+		end
+		self.blinkstatus = not self.blinkstatus
+	end
+	if self.timer > 10 then
+		local pos = self.object:getpos()
+		pos.x = math.floor(pos.x+0.5)
+		pos.y = math.floor(pos.y+0.5)
+		pos.z = math.floor(pos.z+0.5)
+		minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
+		for x=-HARDCORE_IRON_TNT_RANGE,HARDCORE_IRON_TNT_RANGE do
+		for z=-HARDCORE_IRON_TNT_RANGE,HARDCORE_IRON_TNT_RANGE do
+			if x*x+z*z <= HARDCORE_IRON_TNT_RANGE * HARDCORE_IRON_TNT_RANGE + HARDCORE_IRON_TNT_RANGE then
+				local np={x=pos.x+x,y=pos.y,z=pos.z+z}
+				minetest.add_entity(np, "nuke:iron_tnt")
+			end
+		end
+		end
+		self.object:remove()
+	end
+end
+
+function HARDCORE_IRON_TNT:on_punch(hitter)
+	self.health = self.health - 1
+	if self.health <= 0 then
+		self.object:remove()
+		hitter:add_to_inventory("node nuke:hardcore_iron_tnt 1")
+	end
+end
+
+minetest.register_entity("nuke:hardcore_iron_tnt", HARDCORE_IRON_TNT)
+
+-- Hardcore Mese TNT
+
+minetest.register_node("nuke:hardcore_mese_tnt", {
+	tiles = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
+			"nuke_hardcore_mese_tnt_side.png"},
+	inventory_image = minetest.inventorycube("nuke_mese_tnt_top.png",
+			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png"),
+	dug_item = '', -- Get nothing
+	material = {
+		diggability = "not",
+	},
+	description = "Hardcore Mese Bomb",
+})
+
+minetest.register_on_punchnode(function(p, node)
+	if node.name == "nuke:hardcore_mese_tnt" then
+		minetest.remove_node(p)
+		spawn_tnt(p, "nuke:hardcore_mese_tnt")
+		nodeupdate(p)
+	end
+end)
+
+local HARDCORE_MESE_TNT_RANGE = 6
+local HARDCORE_MESE_TNT = {
+	-- Static definition
+	physical = true, -- Collides with things
+	-- weight = 5,
+	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
+	visual = "cube",
+	textures = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
+			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png",
+			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png"},
+	-- Initial value for our timer
+	timer = 0,
+	-- Number of punches required to defuse
+	health = 1,
+	blinktimer = 0,
+	blinkstatus = true,
+}
+
+function HARDCORE_MESE_TNT:on_activate(staticdata)
+	self.object:setvelocity({x=0, y=4, z=0})
+	self.object:setacceleration({x=0, y=-10, z=0})
+	self.object:settexturemod("^[brighten")
+end
+
+function HARDCORE_MESE_TNT:on_step(dtime)
+	self.timer = self.timer + dtime
+	self.blinktimer = self.blinktimer + dtime
+	if self.timer>5 then
+		self.blinktimer = self.blinktimer + dtime
+		if self.timer>8 then
+			self.blinktimer = self.blinktimer + dtime
+			self.blinktimer = self.blinktimer + dtime
+		end
+	end
+	if self.blinktimer > 0.5 then
+		self.blinktimer = self.blinktimer - 0.5
+		if self.blinkstatus then
+			self.object:settexturemod("")
+		else
+			self.object:settexturemod("^[brighten")
+		end
+		self.blinkstatus = not self.blinkstatus
+	end
+	if self.timer > 10 then
+		local pos = self.object:getpos()
+		pos.x = math.floor(pos.x+0.5)
+		pos.y = math.floor(pos.y+0.5)
+		pos.z = math.floor(pos.z+0.5)
+		minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
+		for x=-HARDCORE_MESE_TNT_RANGE,HARDCORE_MESE_TNT_RANGE do
+		for z=-HARDCORE_MESE_TNT_RANGE,HARDCORE_MESE_TNT_RANGE do
+			if x*x+z*z <= HARDCORE_MESE_TNT_RANGE * HARDCORE_MESE_TNT_RANGE + HARDCORE_MESE_TNT_RANGE then
+				local np={x=pos.x+x,y=pos.y,z=pos.z+z}
+				minetest.add_entity(np, "nuke:mese_tnt")
+			end
+		end
+		end
+		self.object:remove()
+	end
+end
+
+function HARDCORE_MESE_TNT:on_punch(hitter)
+	self.health = self.health - 1
+	if self.health <= 0 then
+		self.object:remove()
+		hitter:add_to_inventory("node nuke:hardcore_mese_tnt 1")
+	end
+end
+
+minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
+
+
+
+
+moss.register_moss({
+	node = "nuke:iron_tnt",
+	result = "nuke:mossy_tnt"
+})
+
+moss.register_moss({
+	node = "nuke:mese_tnt",
+	result = "nuke:mossy_tnt"
+})
+
+
+
+

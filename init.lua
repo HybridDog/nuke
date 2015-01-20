@@ -30,11 +30,9 @@ minetest.after(3, function()
 		table.insert(nuke.mossy_nodes, {i.node, i.result})
 	end
 
-	local num = 1
 	nuke.mossy_nds = {}
-	for _,node in ipairs(nuke.mossy_nodes) do
-		nuke.mossy_nds[num] = {minetest.get_content_id(node[1]), minetest.get_content_id(node[2])}
-		num = num+1
+	for i,node in pairs(nuke.mossy_nodes) do
+		nuke.mossy_nds[i] = {minetest.get_content_id(node[1]), minetest.get_content_id(node[2])}
 	end
 end)
 
@@ -78,7 +76,7 @@ function do_tnt_physics(pos, r)
 		local v = obj:getvelocity()
 		local p = obj:getpos()
 		if table_icontains(
-			{"experimental:tnt", "nuke:iron_tnt", "nuke:mese_tnt", "nuke:hardcore_iron_tnt", "nuke:hardcore_mese_tnt"},
+			{"experimental:tnt", "nuke:iron_tnt"},
 			oname
 		) then
 			obj:setvelocity({x=(p.x - pos.x) + (r / 2) + v.x, y=(p.y - pos.y) + r + v.y, z=(p.z - pos.z) + (r / 2) + v.z})
@@ -112,40 +110,13 @@ local function add_c_to_tab(tab, c, nd)
 	return tab
 end
 
-local chest_descs = {
-	{5, "You nuked. I HAVE NOT!"},
-	{10, "Hehe, I'm the result of your explosion hee!"},
-	{20, "Look into me, I'm fat!"},
-	{30, "Please don't rob me. Else you are as evil as the other persons who took my inventoried stuff."},
-	{300, "I'll follow you until I ate you. Like I did with the other objects here..."},
-}
-
-function nuke.describe_chest()
-	for _,i in ipairs(chest_descs) do
-		if math.random(i[1]) == 1 then
-			return i[2]
-		end
-	end
-	return "Feel free to take the nuked items out of me!"
-end
-
-function nuke.set_chest(pos) --add a chest
-	minetest.add_node(pos, {name="default:chest"})
-	local meta = minetest.get_meta(pos)
-	meta:set_string("formspec", default.chest_formspec)
-	meta:set_string("infotext", describe_chest())
-	local inve = meta:get_inventory()
-	inve:set_size("main", 8*4)
-	nuke_chestpos = pos
-end
-
 local function get_drops(data)
 	local tab = {}
 	for c,n in pairs(data) do
 		local nodename = minetest.get_name_from_content_id(c)
 		while n > 0 do
 			local drops = minetest.get_node_drops(nodename)
-			for _, item in ipairs(drops) do
+			for _, item in pairs(drops) do
 				local curcnt = tab[item]
 				if not curcnt then
 					tab[item] = 1
@@ -186,7 +157,7 @@ function nuke.explode(pos, tab, range)
 	local player = nuke_puncher
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
 
-	for _,npos in ipairs(tab) do
+	for _,npos in pairs(tab) do
 		local p = vector.add(pos, npos[1])
 		local node = minetest.get_node(p)
 		if node.name ~= c_air then
@@ -215,7 +186,7 @@ function nuke.explode(pos, tab, range)
 	if nuke.preserve_items then
 		node_tab = {}
 		num = 1
-		for _,npos in ipairs(tab) do
+		for _,npos in pairs(tab) do
 			local p = vector.add(pos, npos[1])
 			local p_p = area:index(p.x, p.y, p.z)
 			local d_p_p = nodes[p_p]
@@ -235,7 +206,7 @@ function nuke.explode(pos, tab, range)
 		end
 		move_items(node_tab)
 	else
-		for _,npos in ipairs(tab) do
+		for _,npos in pairs(tab) do
 			local f = npos[1]
 			local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
 			local p_p = area:index(p.x, p.y, p.z)
@@ -257,6 +228,64 @@ end
 
 end
 
+
+function nuke.explode_inv(pos, tab, range, dir)
+	local t1 = os.clock()
+	minetest.sound_play("nuke_explode", {pos = pos, max_hear_distance = range*200})
+
+	local manip = minetest.get_voxel_manip()
+	local area = nuke.r_area(manip, range+1, pos)
+	local nodes = manip:get_data()
+
+	minetest.chat_send_all(dump(dir))
+	local mx = dir.z/dir.x
+	local my = dir.z/dir.y
+
+--[[
+rt(x²+y²+z²) = rt(x2²+y2²+z2²)
+(x2-x)*x+(y2-y)*y+(z2-z)*z = 0
+x2 = (x²-(y2-y)*y-(z2-z)*z)/x
+]]
+
+	local dones = {}
+	for _,npos in pairs(tab) do
+		local f = npos[1]
+		local x,y,z = f.x,f.y,f.z
+		local shy = z/my
+		if y > shy then
+			local y2 = 2*shy-y
+			local shx = z/mx
+			local x2 = 2*shx-x
+			local shz = x*mx
+			local z2 = 2*shz-z
+			x2 = math.floor(x2+0.5)
+			y2 = math.floor(y2+0.5)
+			z2 = math.floor(z2+0.5)
+			--local cm = f.z/f.x
+			--local dist = math.hypot(f.x, f.z)
+			--local a = math.atan(cm)
+			--minetest.chat_send_all(a.." "..b.." "..a+b)
+			local p1 = vector.add(pos, {x=x, y=y, z=z})
+			local p2 = vector.add(pos, {x=x2, y=y2, z=z2})
+			local p_p = area:indexp(p1)
+			local p_p2 = area:indexp(p2)
+			if not dones[p_p]
+			and not dones[p_p2] then
+				dones[p_p] = true
+				dones[p_p2] = true
+			--if not npos[2]
+			--or math.random(2) then
+				local d1 = nodes[p_p]
+				local d2 = nodes[p_p2]
+				nodes[p_p] = d2 or c_air
+				nodes[p_p2] = d1 or c_air
+			end
+		end
+	end
+	nuke.set_vm_data(manip, nodes, pos, t1, "explodid")
+end
+
+
 function nuke.explode_mossy(pos, tab, range)
 	local t1 = os.clock()
 	minetest.sound_play("nuke_explode", {pos = pos, gain = 1, max_hear_distance = range*200})
@@ -265,7 +294,7 @@ function nuke.explode_mossy(pos, tab, range)
 	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	for _,npos in ipairs(tab) do
+	for _,npos in pairs(tab) do
 
 		local f = npos[1]
 		local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
@@ -277,7 +306,7 @@ function nuke.explode_mossy(pos, tab, range)
 				if math.random(5) >= 4 then
 					nodes[p_p] = c_air
 				else
-					for _,node in ipairs(nuke.mossy_nds) do
+					for _,node in pairs(nuke.mossy_nds) do
 						if d_p_p == node[1] then
 							nodes[p_p] = node[2]
 							break
@@ -302,7 +331,7 @@ function nuke.explode_tnt(pos, tab, range, delay)
 	if nuke.preserve_items then
 		node_tab = {}
 		num = 1
-		for _,npos in ipairs(tab) do
+		for _,npos in pairs(tab) do
 			local p = vector.add(pos, npos[1])
 			local p_p = area:index(p.x, p.y, p.z)
 			local d_p_p = nodes[p_p]
@@ -322,7 +351,7 @@ function nuke.explode_tnt(pos, tab, range, delay)
 		end
 		move_items(node_tab)
 	else
-		for _,npos in ipairs(tab) do
+		for _,npos in pairs(tab) do
 			local f = npos[1]
 			local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
 			local p_p = area:index(p.x, p.y, p.z)
@@ -349,7 +378,7 @@ function nuke.explode_tnt(pos, tab, range, delay)
 		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
 
 		minetest.add_particle(param.pos, {x=0,y=0,z=0}, {x=0,y=0,z=0}, 0.5, 16*(param.range*2-1), false, "smoke_puff.png")
-		for _,i in ipairs({
+		for _,i in pairs({
 			{{x=param.pos.x-param.range, y=param.pos.y-param.range, z=param.pos.z-param.range}, {x=-3, y=0, z=-3}},
 			{{x=param.pos.x+param.range, y=param.pos.y-param.range, z=param.pos.z-param.range}, {x=3, y=0, z=-3}},
 			{{x=param.pos.x-param.range, y=param.pos.y-param.range, z=param.pos.z+param.range}, {x=-3, y=0, z=3}},
@@ -405,7 +434,7 @@ end
 								nodes[p_np] = c_air
 								--destroy_node(np)
 							else
-								for _,node in ipairs(nuke.mossy_nds) do
+								for _,node in pairs(nuke.mossy_nds) do
 									if d_p_np == node[1] then
 										nodes[p_np] = node[2]
 										break
@@ -446,7 +475,7 @@ or minetest.is_singleplayer() then
 	local w = 'default:wood'
 	local c = 'default:coal_lump'
 
-	for _,i in ipairs({
+	for _,i in pairs({
 		{"mese", "mese_crystal"},
 		{"iron", "steel_ingot"}
 	}) do
@@ -460,15 +489,6 @@ or minetest.is_singleplayer() then
 				{'', w, ''}
 			}
 		})
-
-		minetest.register_craft({
-			output = 'nuke:hardcore_'..i[1]..'_tnt',
-			recipe = {
-				{'', c, ''},
-				{c, 'nuke:'..i[1]..'_tnt', c},
-				{'', c, ''}
-			}
-		})
 	end
 end
 
@@ -479,12 +499,12 @@ function nuke.lit_tnt(pos, name, puncher)
 	nuke_puncher = puncher
 end
 
-for _,i in ipairs(nuke.bombs_list) do
+for _,i in pairs(nuke.bombs_list) do
 	local nnam = "nuke:"..i[1].."_tnt"
 	minetest.register_node(nnam, {
 		description = i[2].." Bomb",
 		tiles = {"nuke_"..i[1].."_tnt_top.png", "nuke_"..i[1].."_tnt_bottom.png", "nuke_"..i[1].."_tnt_side.png"},
-		dug_item = '', -- Get nothing
+		dug_item = '', -- Get nothing?
 		material = {diggability = "not"},
 	})
 
@@ -709,210 +729,6 @@ end
 minetest.register_entity("nuke:mossy_tnt", MOSSY_TNT)
 
 
--- Hardcore Iron TNT
-
-minetest.register_node("nuke:hardcore_iron_tnt", {
-	tiles = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
-			"nuke_hardcore_iron_tnt_side.png"},
-	inventory_image = minetest.inventorycube("nuke_iron_tnt_top.png",
-			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png"),
-	dug_item = '', -- Get nothing
-	material = {
-		diggability = "not",
-	},
-	description = "Hardcore Iron Bomb",
-})
-
-minetest.register_on_punchnode(function(p, node)
-	if node.name == "nuke:hardcore_iron_tnt" then
-		minetest.remove_node(p)
-		spawn_tnt(p, "nuke:hardcore_iron_tnt")
-		nodeupdate(p)
-	end
-end)
-
-local HARDCORE_IRON_TNT_RANGE = 6
-local HARDCORE_IRON_TNT = {
-	-- Static definition
-	physical = true, -- Collides with things
-	-- weight = 5,
-	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
-	visual = "cube",
-	textures = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
-			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png",
-			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png"},
-	-- Initial value for our timer
-	timer = 0,
-	-- Number of punches required to defuse
-	health = 1,
-	blinktimer = 0,
-	blinkstatus = true,
-}
-
-function HARDCORE_IRON_TNT:on_activate(staticdata)
-	self.object:setvelocity({x=0, y=4, z=0})
-	self.object:setacceleration({x=0, y=-10, z=0})
-	self.object:settexturemod("^[brighten")
-end
-
-function HARDCORE_IRON_TNT:on_step(dtime)
-	self.timer = self.timer + dtime
-	self.blinktimer = self.blinktimer + dtime
-	if self.timer>5 then
-		self.blinktimer = self.blinktimer + dtime
-		if self.timer>8 then
-			self.blinktimer = self.blinktimer + dtime
-			self.blinktimer = self.blinktimer + dtime
-		end
-	end
-	if self.blinktimer > 0.5 then
-		self.blinktimer = self.blinktimer - 0.5
-		if self.blinkstatus then
-			self.object:settexturemod("")
-		else
-			self.object:settexturemod("^[brighten")
-		end
-		self.blinkstatus = not self.blinkstatus
-	end
-	if self.timer > 10 then
-		local pos = self.object:getpos()
-		pos.x = math.floor(pos.x+0.5)
-		pos.y = math.floor(pos.y+0.5)
-		pos.z = math.floor(pos.z+0.5)
-		minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
-		for x=-HARDCORE_IRON_TNT_RANGE,HARDCORE_IRON_TNT_RANGE do
-		for z=-HARDCORE_IRON_TNT_RANGE,HARDCORE_IRON_TNT_RANGE do
-			if x*x+z*z <= HARDCORE_IRON_TNT_RANGE * HARDCORE_IRON_TNT_RANGE + HARDCORE_IRON_TNT_RANGE then
-				local np={x=pos.x+x,y=pos.y,z=pos.z+z}
-				minetest.add_entity(np, "nuke:iron_tnt")
-			end
-		end
-		end
-		self.object:remove()
-	end
-end
-
-function HARDCORE_IRON_TNT:on_punch(hitter)
-	self.health = self.health - 1
-	if self.health <= 0 then
-		self.object:remove()
-		hitter:add_to_inventory("node nuke:hardcore_iron_tnt 1")
-	end
-end
-
-minetest.register_entity("nuke:hardcore_iron_tnt", HARDCORE_IRON_TNT)
-
--- Hardcore Mese TNT
-
-minetest.register_node("nuke:hardcore_mese_tnt", {
-	tiles = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
-			"nuke_hardcore_mese_tnt_side.png"},
-	inventory_image = minetest.inventorycube("nuke_mese_tnt_top.png",
-			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png"),
-	dug_item = '', -- Get nothing
-	material = {
-		diggability = "not",
-	},
-	description = "Hardcore Mese Bomb",
-})
-
-minetest.register_on_punchnode(function(p, node)
-	if node.name == "nuke:hardcore_mese_tnt" then
-		minetest.remove_node(p)
-		spawn_tnt(p, "nuke:hardcore_mese_tnt")
-		nodeupdate(p)
-	end
-end)
-
-local HARDCORE_MESE_TNT_RANGE = 6
-local HARDCORE_MESE_TNT = {
-	-- Static definition
-	physical = true, -- Collides with things
-	-- weight = 5,
-	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
-	visual = "cube",
-	textures = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
-			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png",
-			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png"},
-	-- Initial value for our timer
-	timer = 0,
-	-- Number of punches required to defuse
-	health = 1,
-	blinktimer = 0,
-	blinkstatus = true,
-}
-
-function HARDCORE_MESE_TNT:on_activate(staticdata)
-	self.object:setvelocity({x=0, y=4, z=0})
-	self.object:setacceleration({x=0, y=-10, z=0})
-	self.object:settexturemod("^[brighten")
-end
-
-function HARDCORE_MESE_TNT:on_step(dtime)
-	self.timer = self.timer + dtime
-	self.blinktimer = self.blinktimer + dtime
-	if self.timer>5 then
-		self.blinktimer = self.blinktimer + dtime
-		if self.timer>8 then
-			self.blinktimer = self.blinktimer + dtime
-			self.blinktimer = self.blinktimer + dtime
-		end
-	end
-	if self.blinktimer > 0.5 then
-		self.blinktimer = self.blinktimer - 0.5
-		if self.blinkstatus then
-			self.object:settexturemod("")
-		else
-			self.object:settexturemod("^[brighten")
-		end
-		self.blinkstatus = not self.blinkstatus
-	end
-	if self.timer > 10 then
-		local pos = self.object:getpos()
-		pos.x = math.floor(pos.x+0.5)
-		pos.y = math.floor(pos.y+0.5)
-		pos.z = math.floor(pos.z+0.5)
-		minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
-		for x=-HARDCORE_MESE_TNT_RANGE,HARDCORE_MESE_TNT_RANGE do
-		for z=-HARDCORE_MESE_TNT_RANGE,HARDCORE_MESE_TNT_RANGE do
-			if x*x+z*z <= HARDCORE_MESE_TNT_RANGE * HARDCORE_MESE_TNT_RANGE + HARDCORE_MESE_TNT_RANGE then
-				local np={x=pos.x+x,y=pos.y,z=pos.z+z}
-				minetest.add_entity(np, "nuke:mese_tnt")
-			end
-		end
-		end
-		self.object:remove()
-	end
-end
-
-function HARDCORE_MESE_TNT:on_punch(hitter)
-	self.health = self.health - 1
-	if self.health <= 0 then
-		self.object:remove()
-		hitter:add_to_inventory("node nuke:hardcore_mese_tnt 1")
-	end
-end
-
-minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
-
-
-
-
-moss.register_moss({
-	node = "nuke:iron_tnt",
-	result = "nuke:mossy_tnt"
-})
-
-moss.register_moss({
-	node = "nuke:mese_tnt",
-	result = "nuke:mossy_tnt"
-})
-
-
-
-
-
-
 
 
 
@@ -970,6 +786,7 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	--nuke.rocket_nodes(vector.round(startpos), dir, player, range, )
 
 	minetest.log("info", "[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
+--nuke.explode_inv(vector.round(playerpos), vector.explosion_table(nuke.rocket_expl_range), nuke.rocket_expl_range, dir)
 end
 
 minetest.register_tool("nuke:rocket_launcher", {
