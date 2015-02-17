@@ -237,49 +237,37 @@ function nuke.explode_inv(pos, tab, range, dir)
 	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	minetest.chat_send_all(dump(dir))
-	local mx = dir.z/dir.x
-	local my = dir.z/dir.y
-
---[[
-rt(x²+y²+z²) = rt(x2²+y2²+z2²)
-(x2-x)*x+(y2-y)*y+(z2-z)*z = 0
-x2 = (x²-(y2-y)*y-(z2-z)*z)/x
-]]
-
+	local dx,dy,dz = dir.x,dir.y,dir.z
 	local dones = {}
 	for _,npos in pairs(tab) do
 		local f = npos[1]
 		local x,y,z = f.x,f.y,f.z
-		local shy = z/my
-		if y > shy then
-			local y2 = 2*shy-y
-			local shx = z/mx
-			local x2 = 2*shx-x
-			local shz = x*mx
-			local z2 = 2*shz-z
+		local dif = (dx*x+dy*y+dz*z)/(dx*dx+dy*dy+dz*dz)
+		if dif < 0
+		and dif ~= math.huge then
+			dif = -dif*2
+			local x2 = x+dir.x*dif
+			local y2 = y+dir.y*dif
+			local z2 = z+dir.z*dif
 			x2 = math.floor(x2+0.5)
 			y2 = math.floor(y2+0.5)
 			z2 = math.floor(z2+0.5)
-			--local cm = f.z/f.x
-			--local dist = math.hypot(f.x, f.z)
-			--local a = math.atan(cm)
-			--minetest.chat_send_all(a.." "..b.." "..a+b)
-			local p1 = vector.add(pos, {x=x, y=y, z=z})
+			local p1 = vector.add(pos, f)
 			local p2 = vector.add(pos, {x=x2, y=y2, z=z2})
 			local p_p = area:indexp(p1)
 			local p_p2 = area:indexp(p2)
-			if not dones[p_p]
+			--[[if not dones[p_p]
 			and not dones[p_p2] then
 				dones[p_p] = true
-				dones[p_p2] = true
+				dones[p_p2] = true]]
 			--if not npos[2]
 			--or math.random(2) then
-				local d1 = nodes[p_p]
+				nodes[p_p],nodes[p_p2] = nodes[p_p2],nodes[p_p]
+				--[[local d1 = nodes[p_p]
 				local d2 = nodes[p_p2]
 				nodes[p_p] = d2 or c_air
-				nodes[p_p2] = d1 or c_air
-			end
+				nodes[p_p2] = d1 or c_air]]
+			--end
 		end
 	end
 	nuke.set_vm_data(manip, nodes, pos, t1, "explodid")
