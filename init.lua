@@ -231,7 +231,7 @@ end
 
 function nuke.explode_inv(pos, tab, range, dir)
 	local t1 = os.clock()
-	minetest.sound_play("nuke_explode", {pos = pos, max_hear_distance = range*200})
+	minetest.sound_play("piston_extend", {pos = pos, max_hear_distance = range*200})
 
 	local manip = minetest.get_voxel_manip()
 	local area = nuke.r_area(manip, range+1, pos)
@@ -239,6 +239,7 @@ function nuke.explode_inv(pos, tab, range, dir)
 
 	local dx,dy,dz = dir.x,dir.y,dir.z
 	local dones = {}
+	local strange = {}
 	for _,npos in pairs(tab) do
 		local f = npos[1]
 		local x,y,z = f.x,f.y,f.z
@@ -246,31 +247,56 @@ function nuke.explode_inv(pos, tab, range, dir)
 		if dif < 0
 		and dif ~= math.huge then
 			dif = -dif*2
-			local x2 = x+dir.x*dif
-			local y2 = y+dir.y*dif
-			local z2 = z+dir.z*dif
-			x2 = math.floor(x2+0.5)
-			y2 = math.floor(y2+0.5)
-			z2 = math.floor(z2+0.5)
 			local p1 = vector.add(pos, f)
-			local p2 = vector.add(pos, {x=x2, y=y2, z=z2})
+			local p = vector.add(p1, vector.multiply(dir, dif))
+			local p2 = vector.round(p)
 			local p_p = area:indexp(p1)
 			local p_p2 = area:indexp(p2)
-			--[[if not dones[p_p]
-			and not dones[p_p2] then
-				dones[p_p] = true
-				dones[p_p2] = true]]
-			--if not npos[2]
-			--or math.random(2) then
-				nodes[p_p],nodes[p_p2] = nodes[p_p2],nodes[p_p]
+			--if not dones[p_p]
+			if dones[p_p2] then
+				table.insert(strange, {p1, p})
+			else
+				--dones[p_p] = true
+				if not npos[2]
+				or math.random(2) == 1 then
+					dones[p_p2] = true
+					nodes[p_p],nodes[p_p2] = nodes[p_p2],nodes[p_p]
+				end
 				--[[local d1 = nodes[p_p]
 				local d2 = nodes[p_p2]
 				nodes[p_p] = d2 or c_air
 				nodes[p_p2] = d1 or c_air]]
-			--end
+			end
+		end
+	end
+	for _,ps in pairs(strange) do
+		local p1,p = unpack(ps)
+		local x,y,z = p.x,p.y,p.z
+		local fi
+		for s = 0.1,range,0.1 do
+			local f = s
+			for ax = -f,f,1 do
+				for ay = -f,f,1 do
+					for az = -f,f,1 do
+						local t = vector.round({x=x+ax, y=y+ay, z=z+az})
+						local p_t = area:indexp(t)
+						if not dones[p_t] then
+							dones[p_t] = true
+							local p_p = area:indexp(p1)
+							nodes[p_p],nodes[p_t] = nodes[p_t],nodes[p_p]
+							fi = true
+							break
+						end
+					end
+					if fi then break end
+				end
+				if fi then break end
+			end
+			if fi then break end
 		end
 	end
 	nuke.set_vm_data(manip, nodes, pos, t1, "explodid")
+	minetest.sound_play("piston_retract", {pos = pos, max_hear_distance = range*200})
 end
 
 
@@ -774,7 +800,6 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	--nuke.rocket_nodes(vector.round(startpos), dir, player, range, )
 
 	minetest.log("info", "[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
---nuke.explode_inv(vector.round(playerpos), vector.explosion_table(nuke.rocket_expl_range), nuke.rocket_expl_range, dir)
 end
 
 minetest.register_tool("nuke:rocket_launcher", {
@@ -785,6 +810,22 @@ minetest.register_tool("nuke:rocket_launcher", {
 	on_use = function(_, user)
 		nuke_puncher = user
 		nuke.rocket_shoot(user, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
+	end,
+})
+
+local srw_range = 15
+minetest.register_tool("nuke:mirrortool", {
+	description = "SRW",
+	inventory_image = "nuke_rocket_launcher.png^[brighten^[transform"..math.random(0,7),
+	range = 0,
+	stack_max = 1,
+	on_use = function(_, user)
+		nuke_puncher = user
+		local pos = user:getpos()
+		pos.y = pos.y+1.625
+		pos = vector.round(pos)
+		local dir = user:get_look_dir()
+		nuke.explode_inv(pos, vector.explosion_table(srw_range), srw_range, dir)
 	end,
 })
 
