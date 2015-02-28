@@ -30,8 +30,7 @@ Nuke Mod 1.5 made by sfan5
 
 TODO:
 
-— use a table for the invert explosion
+— find a better fix for the invert explosion
 — add more nuke rls
 — move the rocket launcher(s) into a seperate file
-— add a special one for the invert explosion
 — update branch "original"
