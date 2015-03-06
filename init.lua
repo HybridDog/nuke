@@ -1,9 +1,9 @@
--- Nuke Mod 1.5 by sfan5
+-- Nuke Mod 1.6 by sfan5
 -- Licensed under GPLv2
 
 function spawn_tnt(pos, entname)
     minetest.sound_play("nuke_ignite", {pos = pos,gain = 1.0,max_hear_distance = 8,})
-    return minetest.env:add_entity(pos, entname)
+    return minetest.add_entity(pos, entname)
 end
 
 function activate_if_tnt(nname, np, tnt_np, tntr)
@@ -14,7 +14,7 @@ function activate_if_tnt(nname, np, tnt_np, tntr)
 end
 
 function do_tnt_physics(tnt_np,tntr)
-    local objs = minetest.env:get_objects_inside_radius(tnt_np, tntr)
+    local objs = minetest.get_objects_inside_radius(tnt_np, tntr)
     for k, obj in pairs(objs) do
         local oname = obj:get_entity_name()
         local v = obj:getvelocity()
@@ -43,6 +43,7 @@ minetest.register_craft({
 		{'','default:wood 1',''}
 	}
 })
+
 minetest.register_node("nuke:iron_tnt", {
 	tile_images = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
 			"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png",
@@ -50,19 +51,25 @@ minetest.register_node("nuke:iron_tnt", {
 	inventory_image = minetest.inventorycube("nuke_iron_tnt_top.png",
 			"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png"),
 	dug_item = '', -- Get nothing
-	material = {
-		diggability = "not",
-	},
+	diggable = false,
 	description = "Iron TNT",
+	mesecons = {
+		effector = {
+			action_on = function(pos, node)
+				minetest.remove_node(pos)
+				spawn_tnt(pos, node.name)
+				nodeupdate(pos)
+			end,
+			action_off = function(pos, node) end,
+			action_change = function(pos, node) end,
+		},
+	},
+	on_punch = function(pos, node, puncher)
+		minetest.remove_node(pos)
+		spawn_tnt(pos, node.name)
+		nodeupdate(pos)
+	end,
 })
-
-minetest.register_on_punchnode(function(p, node)
-	if node.name == "nuke:iron_tnt" then
-		minetest.env:remove_node(p)
-		spawn_tnt(p, "nuke:iron_tnt")
-		nodeupdate(p)
-	end
-end)
 
 local IRON_TNT_RANGE = 6
 local IRON_TNT = {
@@ -114,7 +121,7 @@ function IRON_TNT:on_step(dtime)
         pos.z = math.floor(pos.z+0.5)
         do_tnt_physics(pos, IRON_TNT_RANGE)
         minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
-        if minetest.env:get_node(pos).name == "default:water_source" or minetest.env:get_node(pos).name == "default:water_flowing" then
+        if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
             -- Cancel the Explosion
             self.object:remove()
             return
@@ -124,9 +131,9 @@ function IRON_TNT:on_step(dtime)
         for z=-IRON_TNT_RANGE,IRON_TNT_RANGE do
             if x*x+y*y+z*z <= IRON_TNT_RANGE * IRON_TNT_RANGE + IRON_TNT_RANGE then
                 local np={x=pos.x+x,y=pos.y+y,z=pos.z+z}
-                local n = minetest.env:get_node(np)
+                local n = minetest.get_node(np)
                 if n.name ~= "air" then
-                    minetest.env:remove_node(np)
+                    minetest.remove_node(np)
                 end
                 activate_if_tnt(n.name, np, pos, IRON_TNT_RANGE)
             end
@@ -157,6 +164,7 @@ minetest.register_craft({
 		{'','default:wood 1',''}
 	}
 })
+
 minetest.register_node("nuke:mese_tnt", {
 	tile_images = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
 			"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png",
@@ -164,19 +172,25 @@ minetest.register_node("nuke:mese_tnt", {
 	inventory_image = minetest.inventorycube("nuke_mese_tnt_top.png",
 			"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"),
 	dug_item = '', -- Get nothing
-	material = {
-		diggability = "not",
-	},
+	diggable = false,
 	description = "Mese TNT",
+	mesecons = {
+		effector = {
+			action_on = function(pos, node)
+				minetest.remove_node(pos)
+				spawn_tnt(pos, node.name)
+				nodeupdate(pos)
+			end,
+			action_off = function(pos, node) end,
+			action_change = function(pos, node) end,
+		},
+	},
+	on_punch = function(pos, node, puncher)
+		minetest.remove_node(pos)
+		spawn_tnt(pos, node.name)
+		nodeupdate(pos)
+	end,
 })
-
-minetest.register_on_punchnode(function(p, node)
-	if node.name == "nuke:mese_tnt" then
-		minetest.env:remove_node(p)
-		spawn_tnt(p, "nuke:mese_tnt")
-		nodeupdate(p)
-	end
-end)
 
 local MESE_TNT_RANGE = 12
 local MESE_TNT = {
@@ -228,7 +242,7 @@ function MESE_TNT:on_step(dtime)
         pos.z = math.floor(pos.z+0.5)
         do_tnt_physics(pos, MESE_TNT_RANGE)
         minetest.sound_play("nuke_explode", {pos = pos,gain = 1.0,max_hear_distance = 16,})
-        if minetest.env:get_node(pos).name == "default:water_source" or minetest.env:get_node(pos).name == "default:water_flowing" then
+        if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
             -- Cancel the Explosion
             self.object:remove()
             return
@@ -238,9 +252,9 @@ function MESE_TNT:on_step(dtime)
         for z=-MESE_TNT_RANGE,MESE_TNT_RANGE do
             if x*x+y*y+z*z <= MESE_TNT_RANGE * MESE_TNT_RANGE + MESE_TNT_RANGE then
                 local np={x=pos.x+x,y=pos.y+y,z=pos.z+z}
-                local n = minetest.env:get_node(np)
+                local n = minetest.get_node(np)
                 if n.name ~= "air" then
-                    minetest.env:remove_node(np)
+                    minetest.remove_node(np)
                 end
                 activate_if_tnt(n.name, np, pos, MESE_TNT_RANGE)
             end
@@ -271,6 +285,7 @@ minetest.register_craft({
 		{'','default:coal_lump 1',''}
 	}
 })
+
 minetest.register_node("nuke:hardcore_iron_tnt", {
 	tile_images = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
 			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png",
@@ -278,19 +293,25 @@ minetest.register_node("nuke:hardcore_iron_tnt", {
 	inventory_image = minetest.inventorycube("nuke_iron_tnt_top.png",
 			"nuke_hardcore_iron_tnt_side.png", "nuke_hardcore_iron_tnt_side.png"),
 	dug_item = '', -- Get nothing
-	material = {
-		diggability = "not",
-	},
+	diggable = false,
 	description = "Hardcore Iron TNT",
+	mesecons = {
+		effector = {
+			action_on = function(pos, node)
+				minetest.remove_node(pos)
+				spawn_tnt(pos, node.name)
+				nodeupdate(pos)
+			end,
+			action_off = function(pos, node) end,
+			action_change = function(pos, node) end,
+		},
+	},
+	on_punch = function(pos, node, puncher)
+		minetest.remove_node(pos)
+		spawn_tnt(pos, node.name)
+		nodeupdate(pos)
+	end,
 })
-
-minetest.register_on_punchnode(function(p, node)
-	if node.name == "nuke:hardcore_iron_tnt" then
-		minetest.env:remove_node(p)
-		spawn_tnt(p, "nuke:hardcore_iron_tnt")
-		nodeupdate(p)
-	end
-end)
 
 local HARDCORE_IRON_TNT_RANGE = 4
 local HARDCORE_IRON_TNT = {
@@ -345,7 +366,7 @@ function HARDCORE_IRON_TNT:on_step(dtime)
         for z=-HARDCORE_IRON_TNT_RANGE,HARDCORE_IRON_TNT_RANGE do
             if x*x+z*z <= HARDCORE_IRON_TNT_RANGE * HARDCORE_IRON_TNT_RANGE + HARDCORE_IRON_TNT_RANGE then
                 local np={x=pos.x+x,y=pos.y,z=pos.z+z}
-                minetest.env:add_entity(np, "nuke:iron_tnt")
+                minetest.add_entity(np, "nuke:iron_tnt")
             end
         end
         end
@@ -373,6 +394,7 @@ minetest.register_craft({
 		{'','default:coal_lump 1',''}
 	}
 })
+
 minetest.register_node("nuke:hardcore_mese_tnt", {
 	tile_images = {"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
 			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png",
@@ -380,19 +402,25 @@ minetest.register_node("nuke:hardcore_mese_tnt", {
 	inventory_image = minetest.inventorycube("nuke_mese_tnt_top.png",
 			"nuke_hardcore_mese_tnt_side.png", "nuke_hardcore_mese_tnt_side.png"),
 	dug_item = '', -- Get nothing
-	material = {
-		diggability = "not",
-	},
+	diggable = false,
 	description = "Hardcore Mese TNT",
+	mesecons = {
+		effector = {
+			action_on = function(pos, node)
+				minetest.remove_node(pos)
+				spawn_tnt(pos, node.name)
+				nodeupdate(pos)
+			end,
+			action_off = function(pos, node) end,
+			action_change = function(pos, node) end,
+		},
+	},
+	on_punch = function(pos, node, puncher)
+		minetest.remove_node(pos)
+		spawn_tnt(pos, node.name)
+		nodeupdate(pos)
+	end,
 })
-
-minetest.register_on_punchnode(function(p, node)
-	if node.name == "nuke:hardcore_mese_tnt" then
-		minetest.env:remove_node(p)
-		spawn_tnt(p, "nuke:hardcore_mese_tnt")
-		nodeupdate(p)
-	end
-end)
 
 local HARDCORE_MESE_TNT_RANGE = 4
 local HARDCORE_MESE_TNT = {
@@ -447,7 +475,7 @@ function HARDCORE_MESE_TNT:on_step(dtime)
         for z=-HARDCORE_MESE_TNT_RANGE,HARDCORE_MESE_TNT_RANGE do
             if x*x+z*z <= HARDCORE_MESE_TNT_RANGE * HARDCORE_MESE_TNT_RANGE + HARDCORE_MESE_TNT_RANGE then
                 local np={x=pos.x+x,y=pos.y,z=pos.z+z}
-                minetest.env:add_entity(np, "nuke:mese_tnt")
+                minetest.add_entity(np, "nuke:mese_tnt")
             end
         end
         end
@@ -465,7 +493,3 @@ end
 
 minetest.register_entity("nuke:hardcore_mese_tnt", HARDCORE_MESE_TNT)
 
-minetest.add_to_creative_inventory("nuke:iron_tnt")
-minetest.add_to_creative_inventory("nuke:mese_tnt")
-minetest.add_to_creative_inventory("nuke:hardcore_iron_tnt")
-minetest.add_to_creative_inventory("nuke:hardcore_mese_tnt")
