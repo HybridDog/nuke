@@ -2,7 +2,7 @@ Nuke:
 
 This is a modified version of sfan5's nuke mod.
 Look here if you want to see the differences:
-https://github.com/HybridDog/nuke/compare/original...master
+https://github.com/HybridDog/nuke/compare/original...master/#files
 
 
 sounds:
