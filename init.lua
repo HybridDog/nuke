@@ -243,7 +243,7 @@ function nuke.explode_inv(pos, tab, range, dir)
 	for _,npos in pairs(tab) do
 		local f = npos[1]
 		local x,y,z = f.x,f.y,f.z
-		local dif = (dx*x+dy*y+dz*z)/(dx*dx+dy*dy+dz*dz)
+		local dif = dx*x+dy*y+dz*z
 		if dif < 0
 		and dif ~= math.huge then
 			dif = -dif*2
