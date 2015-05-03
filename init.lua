@@ -237,13 +237,11 @@ function nuke.explode_inv(pos, tab, range, dir)
 	local area = nuke.r_area(manip, range+1, pos)
 	local nodes = manip:get_data()
 
-	local dx,dy,dz = dir.x,dir.y,dir.z
 	local dones = {}
 	local strange = {}
 	for _,npos in pairs(tab) do
 		local f = npos[1]
-		local x,y,z = f.x,f.y,f.z
-		local dif = dx*x+dy*y+dz*z
+		local dif = vector.scalar(dir, f)
 		if dif < 0
 		and dif ~= math.huge then
 			dif = -dif*2
