@@ -13,7 +13,7 @@ local function explode(pos, range)
 	for x=-range,range do
 		for y=-range,range do
 			for z=-range,range do
-				local r = x^2+y^2+z^2 
+				local r = x^2+y^2+z^2
 				if r <= radius then
 					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
 --					local n = minetest.get_node(np)
@@ -70,7 +70,7 @@ local function explode_invert(pos, range)
 	for x=-range,range do
 		for y=-range,range do
 			for z=-range,range do
-				local r = x^2+y^2+z^2 
+				local r = x^2+y^2+z^2
 				if r <= radius then
 					local np={x=pos.x+x, y=pos.y+y, z=pos.z+z}
 					local i_np=area:index(pos.x+x, pos.y-y, pos.z+z)
