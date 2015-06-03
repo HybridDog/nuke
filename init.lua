@@ -389,29 +389,37 @@ function nuke.explode_tnt(pos, tab, range, delay)
 		minetest.sound_play("nuke_explode", {pos = param.pos, gain = 1, max_hear_distance = param.range*200})
 		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
 
-		minetest.add_particle(param.pos, {x=0,y=0,z=0}, {x=0,y=0,z=0}, 0.5, 16*(param.range*2-1), false, "smoke_puff.png")
+		minetest.add_particle({
+			pos = param.pos,
+			vel = {x=0,y=0,z=0},
+			acc = {x=0,y=0,z=0},
+			expirationtime = 0.5,
+			size = 16*(param.range*2-1),
+			collisiondetection = false,
+			texture = "smoke_puff.png"
+		})
 		for _,i in pairs({
 			{{x=param.pos.x-param.range, y=param.pos.y-param.range, z=param.pos.z-param.range}, {x=-3, y=0, z=-3}},
 			{{x=param.pos.x+param.range, y=param.pos.y-param.range, z=param.pos.z-param.range}, {x=3, y=0, z=-3}},
 			{{x=param.pos.x-param.range, y=param.pos.y-param.range, z=param.pos.z+param.range}, {x=-3, y=0, z=3}},
 			{{x=param.pos.x+param.range, y=param.pos.y-param.range, z=param.pos.z+param.range}, {x=3, y=0, z=3}},
 		}) do
-			minetest.add_particlespawner(
-				5*param.range, --amount
-				0.1, --time
-				i[1], --minpos
-				{x=param.pos.x, y=param.pos.y+param.range, z=param.pos.z}, --maxpos
-				i[2], --minvel
-				{x=0, y=0, z=0}, --maxvel
-				{x=0,y=5,z=0}, --minacc
-				{x=0,y=10,z=0}, --maxacc
-				0.1, --minexptime
-				1, --maxexptime
-				8, --minsize
-				15, --maxsize
-				false, --collisiondetection
-				"smoke_puff.png" --texture
-			)
+			minetest.add_particlespawner({
+				amount = 5*param.range, --amount
+				time = 0.1, --time
+				minpos = i[1], --minpos
+				maxpos = {x=param.pos.x, y=param.pos.y+param.range, z=param.pos.z}, --maxpos
+				minvel = i[2], --minvel
+				maxvel = {x=0, y=0, z=0}, --maxvel
+				minacc = {x=0,y=5,z=0}, --minacc
+				maxacc = {x=0,y=10,z=0}, --maxacc
+				minexptime = 0.1, --minexptime
+				maxexptime = 1, --maxexptime
+				minsize = 8, --minsize
+				maxsize = 15, --maxsize
+				collisiondetection = false, --collisiondetection
+				texture = "smoke_puff.png" --texture
+			})
 		end
 		param.manip:update_map()
 		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
@@ -789,12 +797,15 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	if not bl then
 		rocket_expl(vector.round(pos2), player, startpos, snd, delay)
 	end
-	minetest.add_particle(startpos,
-		vector.multiply(dir, nuke.rocket_speed),
-		vector.multiply(dir, nuke.rocket_a),
-		delay,
-		1, false, particle_texture.."^[transform"..math.random(0,7)
-	)
+	minetest.add_particle({
+		pos = startpos,
+		vel = vector.multiply(dir, nuke.rocket_speed),
+		acc = vector.multiply(dir, nuke.rocket_a),
+		expirationtime = delay,
+		size = 1,
+		collisiondetection = false,
+		texture = particle_texture.."^[transform"..math.random(0,7)
+	})
 	--nuke.rocket_nodes(vector.round(startpos), dir, player, range, )
 
 	minetest.log("info", "[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
