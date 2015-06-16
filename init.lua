@@ -44,11 +44,12 @@ function nuke.r_area(manip, size, pos)
 	return VoxelArea:new({MinEdge=emerged_pos1, MaxEdge=emerged_pos2})
 end
 
+local no_map_update
 function nuke.set_vm_data(manip, nodes, pos, t1, msg)
 	manip:set_data(nodes)
 	manip:write_to_map()
 	minetest.log("info", string.format("[nuke] "..msg.." at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
-	if not nuke.no_map_update then
+	if not no_map_update then
 		local t1 = os.clock()
 		manip:update_map()
 		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
@@ -387,8 +388,10 @@ function nuke.explode_tnt(pos, tab, range, delay)
 	minetest.after(delay, function(param)
 		local t1 = os.clock()
 		minetest.sound_play("nuke_explode", {pos = param.pos, gain = 1, max_hear_distance = param.range*200})
-		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
 
+		if no_map_update then
+			return
+		end
 		minetest.add_particle({
 			pos = param.pos,
 			vel = {x=0,y=0,z=0},
@@ -479,9 +482,9 @@ minetest.register_chatcommand('nuke_switch_map_update',{
 	description = 'Switch map update',
 	params = "",
 	privs = {},
-	func = function()
-		nuke.no_map_update = not nuke.no_map_update
-		msg = "nuke map_update: ".. tostring(not nuke.no_map_update)
+	func = function(name)
+		no_map_update = not no_map_update
+		msg = "nuke map_update: ".. tostring(not no_map_update)
 		minetest.log("action", "[nuke] "..name..": "..msg)
 		minetest.chat_send_player(name, msg)
 	end
@@ -759,14 +762,13 @@ nuke.rocket_speed = 1
 nuke.rocket_a = 100
 nuke.rocket_range = 100
 nuke.rocket_expl_range = 3
-fullautomatic_launcher = false
 
 local function rocket_expl(pos, player, pos2, sound, delay)
 	local nodenam = minetest.get_node(pos).name
-	if nodenam == "air"
-	or nodenam == "ignore"
+	if nodenam == "ignore"
 	or nodenam == "default:water_source"
-	or nodenam == "default:water_flowing" then
+	or nodenam == "default:water_flowing"
+	or nodenam == "air" then
 		return
 	end
 	--[[local maxp = {x=nuke.rocket_expl_range, y=nuke.rocket_expl_range, z=nuke.rocket_expl_range}
@@ -777,6 +779,7 @@ local function rocket_expl(pos, player, pos2, sound, delay)
 	nuke.explode_tnt(pos, vector.explosion_table(nuke.rocket_expl_range), nuke.rocket_expl_range, delay)
 	minetest.after(delay, function(pos)
 		minetest.sound_stop(sound)
+		-- problem: objects already fell because of hidden removing
 		do_tnt_physics(pos, nuke.rocket_expl_range)
 	end, pos)
 end
@@ -811,16 +814,48 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	minetest.log("info", "[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
 end
 
+local launcher_active, timer
 minetest.register_tool("nuke:rocket_launcher", {
 	description = "Rocket Launcher",
 	inventory_image = "nuke_rocket_launcher.png",
 	range = 0,
 	stack_max = 1,
 	on_use = function(_, user)
+		launcher_active = true
+		timer = -0.5
 		nuke_puncher = user
 		nuke.rocket_shoot(user, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
 	end,
 })
+
+minetest.register_globalstep(function(dtime)
+	-- abort if noone uses it
+	if not launcher_active then
+		return
+	end
+
+	-- abort that it doesn't shoot too often (change it if your pc runs faster)
+	timer = timer+dtime
+	if timer < 0.1 then
+		return
+	end
+	timer = 0
+
+	local active
+	for _,player in pairs(minetest.get_connected_players()) do
+		if player:get_wielded_item():to_string() == "nuke:rocket_launcher"
+		and player:get_player_control().LMB then
+			nuke_puncher = player
+			nuke.rocket_shoot(player, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
+			active = true
+		end
+	end
+
+	-- disable the function if noone currently uses it to reduce lag
+	if not active then
+		launcher_active = false
+	end
+end)
 
 local srw_range = 15
 minetest.register_tool("nuke:mirrortool", {
@@ -837,19 +872,6 @@ minetest.register_tool("nuke:mirrortool", {
 		nuke.explode_inv(pos, vector.explosion_table(srw_range), srw_range, dir)
 	end,
 })
-
-if fullautomatic_launcher then
-	minetest.register_globalstep(function()
-		for _,player in pairs(minetest.get_connected_players()) do
-			if player:get_wielded_item():to_string() == "nuke:rocket_launcher"
-			and player:get_player_control().LMB then
-				nuke_puncher = player
-				nuke.rocket_shoot(player, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
-			end
-		end
-	end)
-end
-
 --dofile(minetest.get_modpath("nuke").."/b.lua")
 
 minetest.log("info", string.format("[nuke] loaded after ca. %.2fs", os.clock() - time_load_start))
