@@ -5,6 +5,12 @@ Look here if you want to see the differences:
 https://github.com/HybridDog/nuke/compare/original...master/#files
 
 
+dependency links:
+
+https://forum.minetest.net/viewtopic.php?f=9&t=10262
+https://forum.minetest.net/viewtopic.php?f=9&t=8533
+
+
 sounds:
 
 license: cc (creative commons)
