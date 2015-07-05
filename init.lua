@@ -24,6 +24,11 @@ nuke.bombs_list = {
 	{"mossy", "Mossy"}
 }
 
+local function log(msg, lv)
+	lv = lv or "info"
+	minetest.log(lv, msg)
+end
+
 minetest.after(3, function()
 	nuke.mossy_nodes = nuke.mossy_nodes or {}
 	for _,i in pairs(moss.registered_moss) do
@@ -48,11 +53,11 @@ local no_map_update
 function nuke.set_vm_data(manip, nodes, pos, t1, msg)
 	manip:set_data(nodes)
 	manip:write_to_map()
-	minetest.log("info", string.format("[nuke] "..msg.." at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+	log(string.format("[nuke] "..msg.." at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
 	if not no_map_update then
 		local t1 = os.clock()
 		manip:update_map()
-		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
+		log(string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
 	end
 end
 
@@ -171,7 +176,7 @@ function nuke.explode(pos, tab, range)
 			end
 		end
 	end
-	minetest.log("info", string.format("[nuke] exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+	log(string.format("[nuke] exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
 end
 
 else
@@ -334,6 +339,7 @@ function nuke.explode_mossy(pos, tab, range)
 	nuke.set_vm_data(manip, nodes, pos, t1, "exploded (mossy)")
 end
 
+local known_delays = {}
 function nuke.explode_tnt(pos, tab, range, delay)
 	local t1 = os.clock()
 
@@ -383,10 +389,28 @@ function nuke.explode_tnt(pos, tab, range, delay)
 	end
 	manip:set_data(nodes)
 	manip:write_to_map()
-	minetest.log("info", string.format("[nuke] pre exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+	log(string.format("[nuke] pre exploded at ("..pos.x.."|"..pos.y.."|"..pos.z..") after ca. %.2fs", os.clock() - t1))
+
+	local updelay = #known_delays
+	if updelay ~= 0 then
+		local d = 0
+		for i = 1,updelay do
+			d = d+known_delays[i]
+		end
+		updelay = math.max(0, delay - d/updelay)
+	else
+		updelay = delay
+	end
+
+	minetest.after(updelay, function(manip)
+		local t1 = os.clock()
+		manip:update_map()
+		local delay = tonumber(os.clock()-t1)
+		table.insert(known_delays, delay)
+		log(string.format("[nuke] map updated after ca. %.2fs", delay))
+	end, manip)
 
 	minetest.after(delay, function(param)
-		local t1 = os.clock()
 		minetest.sound_play("nuke_explode", {pos = param.pos, gain = 1, max_hear_distance = param.range*200})
 
 		if no_map_update then
@@ -424,9 +448,7 @@ function nuke.explode_tnt(pos, tab, range, delay)
 				texture = "smoke_puff.png" --texture
 			})
 		end
-		param.manip:update_map()
-		minetest.log("info", string.format("[nuke] map updated after ca. %.2fs", os.clock() - t1))
-	end, {pos=pos, range=range, manip=manip})
+	end, {pos=pos, range=range})
 end
 
 
@@ -811,7 +833,7 @@ function nuke.rocket_shoot(player, range, particle_texture, sound)
 	})
 	--nuke.rocket_nodes(vector.round(startpos), dir, player, range, )
 
-	minetest.log("info", "[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
+	log("[nuke] <rocket> my shot was calculated after "..tostring(os.clock()-t1).."s")
 end
 
 local launcher_active, timer
@@ -874,4 +896,4 @@ minetest.register_tool("nuke:mirrortool", {
 })
 --dofile(minetest.get_modpath("nuke").."/b.lua")
 
-minetest.log("info", string.format("[nuke] loaded after ca. %.2fs", os.clock() - time_load_start))
+log(string.format("[nuke] loaded after ca. %.2fs", os.clock() - time_load_start))
