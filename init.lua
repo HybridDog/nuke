@@ -606,17 +606,15 @@ function IRON_TNT:on_step(dtime)
 		self.blinkstatus = not self.blinkstatus
 	end
 	if self.timer > 10 then
-		local pos = self.object:getpos()
-		pos.x = math.floor(pos.x+0.5)
-		pos.y = math.floor(pos.y+0.5)
-		pos.z = math.floor(pos.z+0.5)
+		local pos = vector.round(self.object:getpos())
 		do_tnt_physics(pos, IRON_TNT_RANGE)
 		if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
 			-- Cancel the Explosion
 			self.object:remove()
 			return
 		end
-		nuke.explode(pos, vector.explosion_table(IRON_TNT_RANGE), IRON_TNT_RANGE)
+		--nuke.explode(pos, vector.explosion_table(IRON_TNT_RANGE), IRON_TNT_RANGE)
+		nuke.explode(pos, vector.explosion_perlin(pos, 4, 50, {}), 50)
 		self.object:remove()
 	end
 end
