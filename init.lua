@@ -76,25 +76,19 @@ function spawn_tnt(pos, entname)
 end
 
 function do_tnt_physics(pos, r)
-	local objs = minetest.get_objects_inside_radius(pos, r)
-	for k, obj in pairs(objs) do
-		local oname = obj:get_entity_name()
+	for k, obj in pairs(minetest.get_objects_inside_radius(pos, r)) do
 		local v = obj:getvelocity()
 		local p = obj:getpos()
 		if table_icontains(
 			{"experimental:tnt", "nuke:iron_tnt"},
-			oname
+			obj:get_entity_name()
 		) then
 			obj:setvelocity({x=(p.x - pos.x) + (r / 2) + v.x, y=(p.y - pos.y) + r + v.y, z=(p.z - pos.z) + (r / 2) + v.z})
+		elseif not obj:is_player() then
+			obj:setvelocity({x=(p.x - pos.x) + (r / 4) + v.x, y=(p.y - pos.y) + (r / 2) + v.y, z=(p.z - pos.z) + (r / 4) + v.z})
 		else
-			if v ~= nil then
-				obj:setvelocity({x=(p.x - pos.x) + (r / 4) + v.x, y=(p.y - pos.y) + (r / 2) + v.y, z=(p.z - pos.z) + (r / 4) + v.z})
-			else
-				if obj:get_player_name() ~= nil then
-					local dmg = math.floor(20.5-(vector.distance(pos, p)*20/r))
-					obj:set_hp(obj:get_hp() - dmg)
-				end
-			end
+			local dmg = math.floor(20.5-(vector.distance(pos, p)*20/r))
+			obj:set_hp(obj:get_hp() - dmg)
 		end
 	end
 end
@@ -613,8 +607,7 @@ function IRON_TNT:on_step(dtime)
 			self.object:remove()
 			return
 		end
-		--nuke.explode(pos, vector.explosion_table(IRON_TNT_RANGE), IRON_TNT_RANGE)
-		nuke.explode(pos, vector.explosion_perlin(pos, 4, 50, {}), 50)
+		nuke.explode(pos, vector.explosion_perlin(3, IRON_TNT_RANGE, {seed=37}), IRON_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -655,14 +648,10 @@ local MESE_TNT = nuke.tnt_ent({
 	"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"
 })
 
-local mese_tnt_table
 function MESE_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
-	if not mese_tnt_table then
-		mese_tnt_table = vector.explosion_table(MESE_TNT_RANGE)
-	end
 end
 
 function MESE_TNT:on_step(dtime)
@@ -695,7 +684,7 @@ function MESE_TNT:on_step(dtime)
 			self.object:remove()
 			return
 		end
-		nuke.explode(pos, mese_tnt_table, MESE_TNT_RANGE)
+		nuke.explode(pos, vector.explosion_perlin(4, MESE_TNT_RANGE, {seed=42}), MESE_TNT_RANGE)
 		self.object:remove()
 	end
 end
@@ -719,14 +708,10 @@ local MOSSY_TNT = nuke.tnt_ent({
 	"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"
 })
 
-local mossy_tnt_table
 function MOSSY_TNT:on_activate(staticdata)
 	self.object:setvelocity({x=0, y=4, z=0})
 	self.object:setacceleration({x=0, y=-10, z=0})
 	self.object:settexturemod("^[brighten")
-	if not mossy_tnt_table then
-		mossy_tnt_table = vector.explosion_table(MOSSY_TNT_RANGE)
-	end
 end
 
 function MOSSY_TNT:on_step(dtime)
@@ -748,16 +733,14 @@ function MOSSY_TNT:on_step(dtime)
 		end
 		self.blinkstatus = not self.blinkstatus
 	end
-	if self.timer > 10 then
-		local pos = vector.round(self.object:getpos())
-		do_tnt_physics(pos, MOSSY_TNT_RANGE)
-		if minetest.get_node(pos).name == "default:water_source"
-		or minetest.get_node(pos).name == "default:water_flowing" then
-			self.object:remove()
-			return
-		end
-		nuke.explode_mossy(pos, mossy_tnt_table, MOSSY_TNT_RANGE)
-		self.object:remove()
+	if self.timer < 10 then
+		return
+	end
+	local pos = vector.round(self.object:getpos())
+	self.object:remove()
+	do_tnt_physics(pos, MOSSY_TNT_RANGE)
+	if minetest.get_item_group(minetest.get_node(pos).name, "water") ~= 0 then
+		nuke.explode_mossy(pos, vector.explosion_perlin(1.5, MOSSY_TNT_RANGE, {seed=52}), MOSSY_TNT_RANGE)
 	end
 end
 
@@ -781,7 +764,7 @@ minetest.register_entity("nuke:mossy_tnt", MOSSY_TNT)
 nuke.rocket_speed = 1
 nuke.rocket_a = 100
 nuke.rocket_range = 100
-nuke.rocket_expl_range = 3
+nuke.rocket_expl_range = 6
 
 local function rocket_expl(pos, player, pos2, sound, delay)
 	local nodenam = minetest.get_node(pos).name
@@ -796,7 +779,7 @@ local function rocket_expl(pos, player, pos2, sound, delay)
 	if next(minetest.find_nodes_in_area(vector.add(pos, minp), vector.add(pos, maxp), {"ignore"})) then
 		return false
 	end]]
-	nuke.explode_tnt(pos, vector.explosion_table(nuke.rocket_expl_range), nuke.rocket_expl_range, delay)
+	nuke.explode_tnt(pos, vector.explosion_perlin(2, nuke.rocket_expl_range, {seed=53}), nuke.rocket_expl_range, delay)
 	minetest.after(delay, function(pos)
 		minetest.sound_stop(sound)
 		-- problem: objects already fell because of hidden removing
