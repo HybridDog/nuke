@@ -11,5 +11,5 @@ nuke.RANGE.mese = 15
 nuke.RANGE.iron = 9
 nuke.RANGE.mossy = 5
 
---allows crafting in multiplayer mode
-nuke.always_allow_crafting = false
+--allows crafting
+nuke.allow_crafting = minetest.is_singleplayer()

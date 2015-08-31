@@ -77,18 +77,19 @@ end
 
 function do_tnt_physics(pos, r)
 	for k, obj in pairs(minetest.get_objects_inside_radius(pos, r)) do
-		local v = obj:getvelocity()
 		local p = obj:getpos()
-		if table_icontains(
-			{"experimental:tnt", "nuke:iron_tnt"},
-			obj:get_entity_name()
-		) then
-			obj:setvelocity({x=(p.x - pos.x) + (r / 2) + v.x, y=(p.y - pos.y) + r + v.y, z=(p.z - pos.z) + (r / 2) + v.z})
-		elseif not obj:is_player() then
-			obj:setvelocity({x=(p.x - pos.x) + (r / 4) + v.x, y=(p.y - pos.y) + (r / 2) + v.y, z=(p.z - pos.z) + (r / 4) + v.z})
-		else
+		if obj:is_player() then
 			local dmg = math.floor(20.5-(vector.distance(pos, p)*20/r))
 			obj:set_hp(obj:get_hp() - dmg)
+		else
+			local v = vector.add(vector.add(obj:getvelocity(), vector.subtract(p, pos)), {x=r/2, y=r, z=r/2})
+			if not table_icontains(
+				{"experimental:tnt", "nuke:iron_tnt"},
+				obj:get_entity_name()
+			) then
+				v = vector.divide(v, 2)
+			end
+			obj:setvelocity(v)
 		end
 	end
 end
@@ -107,7 +108,6 @@ local function add_c_to_tab(tab, c, nd)
 	else
 		tab[c] = nd+1
 	end
-	return tab
 end
 
 local function get_drops(data)
@@ -146,8 +146,7 @@ local function add_to_inv(nodes)
 end
 
 local function move_items(data)
-	local drops = get_drops(data)
-	add_to_inv(drops)
+	add_to_inv(get_drops(data))
 end
 
 if nuke.safe_mode then
@@ -192,16 +191,8 @@ function nuke.explode(pos, tab, range)
 			local d_p_p = nodes[p_p]
 			if d_p_p ~= c_air
 			and d_p_p ~= c_chest then
-				local nd = node_tab[d_p_p]
-				if npos[2] then
-					if math.random(2) == 1 then
-						node_tab = add_c_to_tab(node_tab, d_p_p, nd)
-						nodes[p_p] = c_air
-					end
-				else
-					node_tab = add_c_to_tab(node_tab, d_p_p, nd)
-					nodes[p_p] = c_air
-				end
+				add_c_to_tab(node_tab, d_p_p, node_tab[d_p_p])
+				nodes[p_p] = c_air
 			end
 		end
 		move_items(node_tab)
@@ -213,13 +204,7 @@ function nuke.explode(pos, tab, range)
 			local d_p_p = nodes[p_p]
 			if d_p_p ~= c_air
 			and d_p_p ~= c_chest then
-				if npos[2] then
-					if math.random(2) == 1 then
-						nodes[p_p] = c_air
-					end
-				else
-					nodes[p_p] = c_air
-				end
+				nodes[p_p] = c_air
 			end
 		end
 	end
@@ -351,15 +336,8 @@ function nuke.explode_tnt(pos, tab, range, delay)
 			if d_p_p ~= c_air
 			and d_p_p ~= c_chest then
 				local nd = node_tab[d_p_p]
-				if npos[2] then
-					if math.random(2) == 1 then
-						node_tab = add_c_to_tab(node_tab, d_p_p, nd)
-						nodes[p_p] = c_air
-					end
-				else
-					node_tab = add_c_to_tab(node_tab, d_p_p, nd)
-					nodes[p_p] = c_air
-				end
+				add_c_to_tab(node_tab, d_p_p, nd)
+				nodes[p_p] = c_air
 			end
 		end
 		move_items(node_tab)
@@ -371,13 +349,7 @@ function nuke.explode_tnt(pos, tab, range, delay)
 			local d_p_p = nodes[p_p]
 			if d_p_p ~= c_air
 			and d_p_p ~= c_chest then
-				if npos[2] then
-					if math.random(2) == 1 then
-						nodes[p_p] = c_air
-					end
-				else
-					nodes[p_p] = c_air
-				end
+				nodes[p_p] = c_air
 			end
 		end
 	end
@@ -509,8 +481,7 @@ minetest.register_chatcommand('nuke_switch_map_update',{
 
 --Crafting:
 
-if nuke.always_allow_crafting
-or minetest.is_singleplayer() then
+if nuke.allow_crafting then
 	local w = 'default:wood'
 	local c = 'default:coal_lump'
 
@@ -531,9 +502,9 @@ or minetest.is_singleplayer() then
 	end
 end
 
-function nuke.lit_tnt(pos, name, puncher)
+function nuke.lit_tnt(pos, node, puncher)
 	minetest.remove_node(pos)
-	spawn_tnt(pos, "nuke:"..name.."_tnt")
+	spawn_tnt(pos, node.name)
 	nodeupdate(pos)
 	nuke_puncher = puncher
 end
@@ -545,70 +516,81 @@ for _,i in pairs(nuke.bombs_list) do
 		tiles = {"nuke_"..i[1].."_tnt_top.png", "nuke_"..i[1].."_tnt_bottom.png", "nuke_"..i[1].."_tnt_side.png"},
 		dug_item = '', -- Get nothing?
 		material = {diggability = "not"},
-	})
-
-	minetest.register_on_punchnode(function(p, node, puncher)
-		if node.name == nnam then
-			nuke.lit_tnt(p, i[1], puncher)
+		on_punch = function(...)
+			nuke.lit_tnt(...)
 		end
-	end)
+	})
 end
+
+local function blinkystep(self, dtime)
+	self.timer = self.timer + dtime
+	self.blinktimer = self.blinktimer + dtime
+	if self.timer > 5 then
+		self.blinktimer = self.blinktimer + dtime
+		if self.timer > 8 then
+			self.blinktimer = self.blinktimer + dtime + dtime
+		end
+	end
+	if self.blinktimer <= 0.5 then
+		return
+	end
+	self.blinktimer = self.blinktimer - 0.5
+	if self.blinkstatus then
+		self.object:settexturemod("")
+	else
+		self.object:settexturemod("^[brighten")
+	end
+	self.blinkstatus = not self.blinkstatus
+end
+
+local function can_explode(self, r)
+	if self.timer < 10 then
+		return
+	end
+	local pos = vector.round(self.object:getpos())
+	self.object:remove()
+	do_tnt_physics(pos, r)
+	if minetest.get_item_group(minetest.get_node(pos).name, "water") == 0 then
+		return pos
+	end
+end
+
+function nuke.tnt_ent(textures)
+	return {
+		-- Static definition
+		physical = true, -- Collides with things
+		-- weight = 5,
+		collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
+		visual = "cube",
+		textures = textures,
+		-- Initial value for our timer
+		timer = 0,
+		-- Number of punches required to defuse
+		health = 1,
+		blinktimer = 0,
+		blinkstatus = true,
+		on_activate = function(self)
+			self.object:setvelocity({x=0, y=4, z=0})
+			self.object:setacceleration({x=0, y=-10, z=0})
+			self.object:settexturemod("^[brighten")
+		end
+	}
+end
+
 
 -- Iron TNT
 
-local IRON_TNT = {
-	-- Static definition
-	physical = true, -- Collides with things
-	-- weight = 5,
-	collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
-	visual = "cube",
-	textures = {"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
-			"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png",
-			"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png"},
-	-- Initial value for our timer
-	timer = 0,
-	-- Number of punches required to defuse
-	health = 1,
-	blinktimer = 0,
-	blinkstatus = true,
-}
-
-function IRON_TNT:on_activate(staticdata)
-	self.object:setvelocity({x=0, y=4, z=0})
-	self.object:setacceleration({x=0, y=-10, z=0})
-	self.object:settexturemod("^[brighten")
-end
+local IRON_TNT = nuke.tnt_ent({
+	"nuke_iron_tnt_top.png", "nuke_iron_tnt_bottom.png",
+	"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png",
+	"nuke_iron_tnt_side.png", "nuke_iron_tnt_side.png"
+})
 
 function IRON_TNT:on_step(dtime)
-	self.timer = self.timer + dtime
-	self.blinktimer = self.blinktimer + dtime
-	if self.timer>5 then
-		self.blinktimer = self.blinktimer + dtime
-
-		if self.timer>8 then
-			self.blinktimer = self.blinktimer + dtime
-			self.blinktimer = self.blinktimer + dtime
-		end
-	end
-	if self.blinktimer > 0.5 then
-		self.blinktimer = self.blinktimer - 0.5
-		if self.blinkstatus then
-			self.object:settexturemod("")
-		else
-			self.object:settexturemod("^[brighten")
-		end
-		self.blinkstatus = not self.blinkstatus
-	end
-	if self.timer > 10 then
-		local pos = vector.round(self.object:getpos())
-		do_tnt_physics(pos, IRON_TNT_RANGE)
-		if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
-			-- Cancel the Explosion
-			self.object:remove()
-			return
-		end
+	blinkystep(self, dtime)
+	local pos = can_explode(self, (IRON_TNT_RANGE+3)/2)
+	if pos then
 		nuke.explode(pos, vector.explosion_perlin(3, IRON_TNT_RANGE, {seed=37}), IRON_TNT_RANGE)
-		self.object:remove()
 	end
 end
 
@@ -625,68 +607,29 @@ minetest.register_entity("nuke:iron_tnt", IRON_TNT)
 
 -- Mese TNT
 
-function nuke.tnt_ent(textures)
-	return {
-		-- Static definition
-		physical = true, -- Collides with things
-		-- weight = 5,
-		collisionbox = {-0.5,-0.5,-0.5, 0.5,0.5,0.5},
-		visual = "cube",
-		textures = textures,
-		-- Initial value for our timer
-		timer = 0,
-		-- Number of punches required to defuse
-		health = 1,
-		blinktimer = 0,
-		blinkstatus = true
-	}
-end
-
 local MESE_TNT = nuke.tnt_ent({
 	"nuke_mese_tnt_top.png", "nuke_mese_tnt_bottom.png",
 	"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png",
 	"nuke_mese_tnt_side.png", "nuke_mese_tnt_side.png"
 })
 
-function MESE_TNT:on_activate(staticdata)
-	self.object:setvelocity({x=0, y=4, z=0})
-	self.object:setacceleration({x=0, y=-10, z=0})
-	self.object:settexturemod("^[brighten")
-end
-
 function MESE_TNT:on_step(dtime)
-	self.timer = self.timer + dtime
-	self.blinktimer = self.blinktimer + dtime
-	if self.timer>5 then
-		self.blinktimer = self.blinktimer + dtime
-		if self.timer>8 then
-			self.blinktimer = self.blinktimer + dtime
-			self.blinktimer = self.blinktimer + dtime
-		end
+	blinkystep(self, dtime)
+	if self.timer < 10 then
+		return
 	end
-	if self.blinktimer > 0.5 then
-		self.blinktimer = self.blinktimer - 0.5
-		if self.blinkstatus then
-			self.object:settexturemod("")
-		else
-			self.object:settexturemod("^[brighten")
-		end
-		self.blinkstatus = not self.blinkstatus
-	end
-	if self.timer > 10 then
-		local pos = self.object:getpos()
-		pos.x = math.floor(pos.x+0.5)
-		pos.y = math.floor(pos.y+0.5)
-		pos.z = math.floor(pos.z+0.5)
-		do_tnt_physics(pos, MESE_TNT_RANGE)
-		if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
-			-- Cancel the Explosion
-			self.object:remove()
-			return
-		end
-		nuke.explode(pos, vector.explosion_perlin(4, MESE_TNT_RANGE, {seed=42}), MESE_TNT_RANGE)
+	local pos = self.object:getpos()
+	pos.x = math.floor(pos.x+0.5)
+	pos.y = math.floor(pos.y+0.5)
+	pos.z = math.floor(pos.z+0.5)
+	do_tnt_physics(pos, MESE_TNT_RANGE)
+	if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
+		-- Cancel the Explosion
 		self.object:remove()
+		return
 	end
+	nuke.explode(pos, vector.explosion_perlin(4, MESE_TNT_RANGE, {seed=42}), MESE_TNT_RANGE)
+	self.object:remove()
 end
 
 function MESE_TNT:on_punch(hitter)
@@ -708,38 +651,11 @@ local MOSSY_TNT = nuke.tnt_ent({
 	"nuke_mossy_tnt_side.png", "nuke_mossy_tnt_side.png"
 })
 
-function MOSSY_TNT:on_activate(staticdata)
-	self.object:setvelocity({x=0, y=4, z=0})
-	self.object:setacceleration({x=0, y=-10, z=0})
-	self.object:settexturemod("^[brighten")
-end
 
 function MOSSY_TNT:on_step(dtime)
-	self.timer = self.timer + dtime
-	self.blinktimer = self.blinktimer + dtime
-	if self.timer>5 then
-		self.blinktimer = self.blinktimer + dtime
-		if self.timer>8 then
-			self.blinktimer = self.blinktimer + dtime
-			self.blinktimer = self.blinktimer + dtime
-		end
-	end
-	if self.blinktimer > 0.5 then
-		self.blinktimer = self.blinktimer - 0.5
-		if self.blinkstatus then
-			self.object:settexturemod("")
-		else
-			self.object:settexturemod("^[brighten")
-		end
-		self.blinkstatus = not self.blinkstatus
-	end
-	if self.timer < 10 then
-		return
-	end
-	local pos = vector.round(self.object:getpos())
-	self.object:remove()
-	do_tnt_physics(pos, MOSSY_TNT_RANGE)
-	if minetest.get_item_group(minetest.get_node(pos).name, "water") ~= 0 then
+	blinkystep(self, dtime)
+	local pos = can_explode(self, (1.5+MOSSY_TNT_RANGE)/2)
+	if pos then
 		nuke.explode_mossy(pos, vector.explosion_perlin(1.5, MOSSY_TNT_RANGE, {seed=52}), MOSSY_TNT_RANGE)
 	end
 end
