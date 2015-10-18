@@ -15,9 +15,9 @@ nuke.RANGE = {}
 
 dofile(minetest.get_modpath("nuke").."/settings.lua")
 
-local MESE_TNT_RANGE = nuke.RANGE["mese"]
-local IRON_TNT_RANGE = nuke.RANGE["iron"]
-local MOSSY_TNT_RANGE = nuke.RANGE["mossy"]
+local MESE_TNT_RANGE = nuke.RANGE.mese
+local IRON_TNT_RANGE = nuke.RANGE.iron
+local MOSSY_TNT_RANGE = nuke.RANGE.mossy
 nuke.bombs_list = {
 	{"iron", "Iron"},
 	{"mese", "Mese"},
@@ -619,17 +619,17 @@ function MESE_TNT:on_step(dtime)
 		return
 	end
 	local pos = self.object:getpos()
+	self.object:remove()
 	pos.x = math.floor(pos.x+0.5)
 	pos.y = math.floor(pos.y+0.5)
 	pos.z = math.floor(pos.z+0.5)
 	do_tnt_physics(pos, MESE_TNT_RANGE)
-	if minetest.get_node(pos).name == "default:water_source" or minetest.get_node(pos).name == "default:water_flowing" then
+	if minetest.get_node(pos).name == "default:water_source"
+	or minetest.get_node(pos).name == "default:water_flowing" then
 		-- Cancel the Explosion
-		self.object:remove()
 		return
 	end
 	nuke.explode(pos, vector.explosion_perlin(4, MESE_TNT_RANGE, {seed=42}), MESE_TNT_RANGE)
-	self.object:remove()
 end
 
 function MESE_TNT:on_punch(hitter)
