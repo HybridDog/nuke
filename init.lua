@@ -753,12 +753,12 @@ minetest.register_globalstep(function(dtime)
 		return
 	end
 
-	-- abort that it doesn't shoot too often (change it if your pc runs faster)
+	--[[ abort that it doesn't shoot too often (change it if your pc runs faster)
 	timer = timer+dtime
 	if timer < 0.1 then
 		return
 	end
-	timer = 0
+	timer = 0 --]]
 
 	local active
 	for _,player in pairs(minetest.get_connected_players()) do
