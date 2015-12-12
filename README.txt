@@ -40,3 +40,4 @@ TODO:
 — add more nuke rls
 — move the rocket launcher(s) into a seperate file
 — update branch "original"
+— add a "falling bomb", not only group:falling can fall, see nyanland
