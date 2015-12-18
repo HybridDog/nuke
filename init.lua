@@ -741,7 +741,7 @@ minetest.register_tool("nuke:rocket_launcher", {
 	stack_max = 1,
 	on_use = function(_, user)
 		launcher_active = true
-		timer = -0.5
+		timer = -0.7
 		nuke_puncher = user
 		nuke.rocket_shoot(user, nuke.rocket_range, "nuke_rocket_launcher_back.png", "nuke_rocket_launcher")
 	end,
