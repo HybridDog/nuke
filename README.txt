@@ -41,3 +41,4 @@ TODO:
 — move the rocket launcher(s) into a seperate file
 — update branch "original"
 — add a "falling bomb", not only group:falling can fall, see nyanland
+— look at minetest_game tnt mod for on_blast
