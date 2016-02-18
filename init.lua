@@ -510,12 +510,10 @@ function nuke.lit_tnt(pos, node, puncher)
 end
 
 for _,i in pairs(nuke.bombs_list) do
-	local nnam = "nuke:"..i[1].."_tnt"
-	minetest.register_node(nnam, {
+	minetest.register_node("nuke:"..i[1].."_tnt", {
 		description = i[2].." Bomb",
 		tiles = {"nuke_"..i[1].."_tnt_top.png", "nuke_"..i[1].."_tnt_bottom.png", "nuke_"..i[1].."_tnt_side.png"},
-		dug_item = '', -- Get nothing?
-		material = {diggability = "not"},
+		diggable = false,
 		on_punch = function(...)
 			nuke.lit_tnt(...)
 		end
