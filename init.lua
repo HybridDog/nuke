@@ -294,7 +294,7 @@ function nuke.explode_mossy(pos, tab, range)
 	for _,npos in pairs(tab) do
 
 		local f = npos[1]
-		local p = {x=pos.x+f.x, y=pos.y+f.y, z=pos.z+f.z}
+		local p = vector.add(pos, f)
 		local p_p = area:index(p.x, p.y, p.z)
 		local d_p_p = nodes[p_p]
 		if d_p_p ~= c_air
