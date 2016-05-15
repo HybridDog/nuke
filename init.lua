@@ -575,6 +575,21 @@ function nuke.tnt_ent(textures)
 	}
 end
 
+local function on_punch_lit(self, hitter, name)
+	if not hitter then
+		return
+	end
+	local inv = hitter:get_inventory()
+	if not inv then
+		return
+	end
+	self.health = self.health - 1
+	if self.health <= 0 then
+		self.object:remove()
+		hitter:get_inventory():add_item("main", name)
+	end
+end
+
 
 -- Iron TNT
 
@@ -592,12 +607,8 @@ function IRON_TNT:on_step(dtime)
 	end
 end
 
-function IRON_TNT:on_punch(hitter)
-	self.health = self.health - 1
-	if self.health <= 0 then
-		self.object:remove()
-		hitter:get_inventory():add_item("main", "nuke:iron_tnt")
-	end
+function IRON_TNT:on_punch(player)
+	return on_punch_lit(self, player, "nuke:iron_tnt")
 end
 
 minetest.register_entity("nuke:iron_tnt", IRON_TNT)
@@ -630,12 +641,8 @@ function MESE_TNT:on_step(dtime)
 	nuke.explode(pos, vector.explosion_perlin(4, MESE_TNT_RANGE, {seed=42}), MESE_TNT_RANGE)
 end
 
-function MESE_TNT:on_punch(hitter)
-	self.health = self.health - 1
-	if self.health <= 0 then
-		self.object:remove()
-		hitter:get_inventory():add_item("main", "nuke:mese_tnt")
-	end
+function MESE_TNT:on_punch(player)
+	return on_punch_lit(self, player, "nuke:mese_tnt")
 end
 
 minetest.register_entity("nuke:mese_tnt", MESE_TNT)
@@ -658,12 +665,8 @@ function MOSSY_TNT:on_step(dtime)
 	end
 end
 
-function MOSSY_TNT:on_punch(hitter)
-	self.health = self.health - 1
-	if self.health <= 0 then
-		self.object:remove()
-		hitter:get_inventory():add_item("main", "nuke:mossy_tnt")
-	end
+function MOSSY_TNT:on_punch(player)
+	return on_punch_lit(self, player, "nuke:mossy_tnt")
 end
 
 minetest.register_entity("nuke:mossy_tnt", MOSSY_TNT)
