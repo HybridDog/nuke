@@ -85,7 +85,7 @@ function do_tnt_physics(pos, r)
 			local v = vector.add(vector.add(obj:getvelocity(), vector.subtract(p, pos)), {x=r/2, y=r, z=r/2})
 			if not table_icontains(
 				{"experimental:tnt", "nuke:iron_tnt"},
-				obj:get_entity_name()
+				obj:get_luaentity().name
 			) then
 				v = vector.divide(v, 2)
 			end
