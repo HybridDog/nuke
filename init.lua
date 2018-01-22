@@ -505,7 +505,7 @@ end
 function nuke.lit_tnt(pos, node, puncher)
 	minetest.remove_node(pos)
 	spawn_tnt(pos, node.name)
-	nodeupdate(pos)
+	minetest.check_for_falling(pos)
 	nuke_puncher = puncher
 end
 
