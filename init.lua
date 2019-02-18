@@ -649,45 +649,21 @@ nuke.rocket_range = 100
 nuke.rocket_expl_range = 6
 
 local last_rocket_expl_delay = 0
-local function rocket_expl(pos, player, projectile_sound, delay)
-	local nodenam = minetest.get_node(pos).name
-	if nodenam == "ignore"
-	or nodenam == "default:water_source"
-	or nodenam == "default:water_flowing"
-	or nodenam == "air" then
-		-- Do not explode when shooting into water, unloaded area or too far
-		return
-	end
-
-	-- Remove the previous explosion calculation time to have the explosion
-	-- in the right moment
-	minetest.after(math.max(delay - last_rocket_expl_delay, 0), function(pos)
-		minetest.sound_stop(projectile_sound)
-		last_rocket_expl_delay = nuke.explode_tnt(pos,
-			vector.explosion_perlin(2, nuke.rocket_expl_range, {seed=53}),
-			nuke.rocket_expl_range, delay)
-		do_tnt_physics(pos, nuke.rocket_expl_range)
-	end, pos)
-end
-
 function nuke.rocket_shoot(player, range, particle_texture, projectile_sound)
 	local playerpos=player:getpos()
 	local dir=player:get_look_dir()
 
 	local startpos = {x=playerpos.x, y=playerpos.y+1.625, z=playerpos.z}
-	local bl, target_pos = minetest.line_of_sight(startpos,
+	local _, target_pos = minetest.line_of_sight(startpos,
 		vector.add(vector.multiply(dir, range), startpos), 1)
 	if not target_pos then
 		return
 	end
 
-	local snd = minetest.sound_play(projectile_sound,
+	projectile_sound = minetest.sound_play(projectile_sound,
 		{pos = playerpos, max_hear_distance = range})
 	local delay = vector.straightdelay(math.max(vector.distance(startpos,
 		target_pos)-0.5, 0), nuke.rocket_speed, nuke.rocket_a)
-	if not bl then
-		rocket_expl(vector.round(target_pos), player, snd, delay)
-	end
 	minetest.add_particle({
 		pos = startpos,
 		vel = vector.multiply(dir, nuke.rocket_speed),
@@ -697,6 +673,37 @@ function nuke.rocket_shoot(player, range, particle_texture, projectile_sound)
 		collisiondetection = false,
 		texture = particle_texture .. "^[transform" .. math.random(0,7)
 	})
+
+	local nodenam = minetest.get_node(target_pos).name
+	if nodenam == "ignore"
+	or nodenam == "default:water_source"
+	or nodenam == "default:water_flowing"
+	or nodenam == "air" then
+		-- Do not explode when shooting into water, unloaded area or too far
+		return
+	end
+
+	-- Subtract the previous explosion calculation time to have the explosion
+	-- in the right moment
+	minetest.after(math.max(delay - last_rocket_expl_delay, 0), function()
+		local nodenam = minetest.get_node(target_pos).name
+		if nodenam == "air" then
+			-- Avoid exploding at the same position multiple times
+			-- when using the automatic shooting
+			local _
+			_, target_pos = minetest.line_of_sight(target_pos,
+				vector.add(vector.multiply(dir, range), target_pos), 1)
+			if not target_pos then
+				return
+			end
+		end
+
+		minetest.sound_stop(projectile_sound)
+		last_rocket_expl_delay = nuke.explode_tnt(target_pos,
+			vector.explosion_perlin(2, nuke.rocket_expl_range, {seed=53}),
+			nuke.rocket_expl_range)
+		do_tnt_physics(target_pos, nuke.rocket_expl_range)
+	end)
 end
 
 local launcher_active, timer
